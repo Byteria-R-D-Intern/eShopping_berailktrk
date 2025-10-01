@@ -11,62 +11,29 @@ import org.springframework.stereotype.Repository;
 import com.berailktrk.eShopping.domain.model.Order;
 import com.berailktrk.eShopping.domain.model.OrderItem;
 
-/**
- * OrderItem repository interface
- * Sipariş kalemleri için repository
- */
+// OrderItem Repository - Sipariş kalemleri işlemleri
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
 
-    /**
-     * Siparişe ait tüm kalemleri getir
-     * 
-     * @param order sipariş
-     * @return sipariş kalemleri
-     */
+    // Siparişe ait tüm kalemleri getir
     List<OrderItem> findByOrder(Order order);
 
-    /**
-     * Sipariş ID'ye göre kalemleri getir
-     * 
-     * @param orderId sipariş ID
-     * @return sipariş kalemleri
-     */
+    // Sipariş ID'ye göre kalemleri getir
     @Query("SELECT oi FROM OrderItem oi WHERE oi.order.id = :orderId")
     List<OrderItem> findByOrderId(@Param("orderId") UUID orderId);
 
-    /**
-     * Ürün ID'ye göre sipariş kalemlerini getir
-     * Ürün analizi ve raporlama için kullanılır
-     * 
-     * @param productId ürün ID
-     * @return sipariş kalemleri
-     */
+    // Ürün ID'ye göre sipariş kalemlerini getir - Analiz ve raporlama için
     @Query("SELECT oi FROM OrderItem oi WHERE oi.product.id = :productId ORDER BY oi.createdAt DESC")
     List<OrderItem> findByProductId(@Param("productId") UUID productId);
 
-    /**
-     * Belirli bir ürünün toplam satış miktarını hesapla
-     * 
-     * @param productId ürün ID
-     * @return toplam satış miktarı
-     */
+    // Belirli bir ürünün toplam satış miktarını hesapla
     @Query("SELECT COALESCE(SUM(oi.qty), 0) FROM OrderItem oi WHERE oi.product.id = :productId")
     Long getTotalQuantitySoldByProductId(@Param("productId") UUID productId);
 
-    /**
-     * Siparişin toplam kalem sayısını getir
-     * 
-     * @param orderId sipariş ID
-     * @return kalem sayısı
-     */
+    // Siparişin toplam kalem sayısını getir
     @Query("SELECT COUNT(oi) FROM OrderItem oi WHERE oi.order.id = :orderId")
     Long countByOrderId(@Param("orderId") UUID orderId);
 
-    /**
-     * Sipariş ID'sine göre tüm kalemleri sil
-     * 
-     * @param orderId sipariş ID
-     */
+    // Sipariş ID'sine göre tüm kalemleri sil
     void deleteByOrderId(UUID orderId);
 }

@@ -18,10 +18,7 @@ import com.berailktrk.eShopping.infrastructure.security.JwtAuthenticationFilter;
 
 import lombok.RequiredArgsConstructor;
 
-/**
- * Spring Security konfigürasyonu
- * JWT authentication ve role-based authorization
- */
+// Spring Security Configuration - JWT authentication ve role-based authorization
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true) // @PreAuthorize kullanımı için
@@ -38,10 +35,6 @@ public class SecurityConfig {
             .sessionManagement(session -> 
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Static resources
-                .requestMatchers("/", "/favicon.ico", "/static/**", "/public/**").permitAll()
-                .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**").permitAll()
-                
                 // Swagger/OpenAPI endpoints
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 
@@ -49,7 +42,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/error").permitAll()
-                .requestMatchers("/health").permitAll()
                 
                 // Product public endpoints (ürün görüntüleme)
                 .requestMatchers("/api/products", "/api/products/*", "/api/products/sku/*", "/api/products/search").permitAll()
@@ -60,9 +52,31 @@ public class SecurityConfig {
                 // Admin endpoints - authentication gerektirir, role kontrolü @PreAuthorize ile
                 .requestMatchers("/api/products/admin/**").authenticated()
                 .requestMatchers("/api/admin/**").authenticated()
+                .requestMatchers("/api/inventory/**").authenticated() // Tüm inventory endpoint'leri admin only
                 
                 // Tüm diğer endpoint'ler authentication gerektirir
                 .anyRequest().authenticated()
+            )
+            // Exception handling - 401 ve 403 hataları için inline handler'lar
+            .exceptionHandling(exception -> exception
+                // 401 Unauthorized - Token eksik/geçersiz
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(401);
+                    response.setContentType("text/plain; charset=UTF-8");
+                    response.getWriter().write(
+                        "401 Unauthorized - Bu endpoint için kimlik doğrulama gereklidir. " +
+                        "Lütfen geçerli bir JWT token ile istek gönderin. Endpoint: " + request.getRequestURI()
+                    );
+                })
+                // 403 Forbidden - Yetki yok
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setStatus(403);
+                    response.setContentType("text/plain; charset=UTF-8");
+                    response.getWriter().write(
+                        "403 Forbidden - Bu işlem için yetkiniz bulunmamaktadır. " +
+                        "Sadece ADMIN rolüne sahip kullanıcılar bu endpoint'e erişebilir. Endpoint: " + request.getRequestURI()
+                    );
+                })
             )
             // JWT filter'ı ekle
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -21,10 +21,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * JWT Authentication Filter
- * Her istekte JWT token'ı kontrol eder ve authentication bilgisini SecurityContext'e ekler
- */
+// JWT Authentication Filter - Her istekte JWT token'ı kontrol eder ve SecurityContext'e ekler
 @Component
 @RequiredArgsConstructor
 @Slf4j

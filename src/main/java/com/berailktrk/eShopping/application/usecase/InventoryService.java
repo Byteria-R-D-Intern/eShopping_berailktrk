@@ -1,194 +1,268 @@
 package com.berailktrk.eShopping.application.usecase;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.berailktrk.eShopping.domain.model.Inventory;
+import com.berailktrk.eShopping.domain.model.Product;
+import com.berailktrk.eShopping.domain.repository.InventoryRepository;
+import com.berailktrk.eShopping.domain.repository.ProductRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * Inventory entity'si için uygulama servis katmanı
- * Stok yönetimi ve karmaşık business logic'i yönetir
+ * Inventory business logic service
+ * Stok yönetimi, rezervasyon ve concurrency kontrolü
+ * 
+ * ÖNEMLİ: Tüm stok işlemleri transactional olmalı
+ * Race condition'ları önlemek için optimistic/pessimistic locking kullanılır
  */
 @Service
+@RequiredArgsConstructor
+@Slf4j
+@Transactional
 public class InventoryService {
 
-    /**
-     * Mevcut stok miktarını (rezerve edilmemiş) hesaplar
-     * 
-     * @param inventory kontrol edilecek envanter
-     * @return müsait stok miktarı
-     */
-    public int getAvailableQuantity(Inventory inventory) {
-        return inventory.getQuantity() - inventory.getReserved();
-    }
+    private final InventoryRepository inventoryRepository;
+    private final ProductRepository productRepository;
+
 
     /**
-     * Belirtilen miktarda stok olup olmadığını kontrol eder
+     * Düşük stoklu ürünleri getir
      * 
-     * @param inventory kontrol edilecek envanter
-     * @param requestedQuantity talep edilen miktar
-     * @return yeterli stok varsa true, yoksa false
-     */
-    public boolean hasAvailableStock(Inventory inventory, int requestedQuantity) {
-        if (requestedQuantity < 0) {
-            throw new IllegalArgumentException("Talep edilen miktar negatif olamaz");
-        }
-        return getAvailableQuantity(inventory) >= requestedQuantity;
-    }
-
-    /**
-     * Stok rezerve eder (sipariş oluşturma sırasında)
-     * 
-     * @param inventory güncellenecek envanter
-     * @param quantityToReserve rezerve edilecek miktar
-     * @throws IllegalStateException yeterli stok yoksa
-     * @throws IllegalArgumentException miktar geçersizse
-     */
-    public void reserveStock(Inventory inventory, int quantityToReserve) {
-        if (quantityToReserve <= 0) {
-            throw new IllegalArgumentException("Rezerve edilecek miktar pozitif olmalıdır");
-        }
-
-        if (!hasAvailableStock(inventory, quantityToReserve)) {
-            throw new IllegalStateException(
-                String.format("Yetersiz stok. Mevcut: %d, Talep: %d", 
-                    getAvailableQuantity(inventory), quantityToReserve)
-            );
-        }
-
-        inventory.setReserved(inventory.getReserved() + quantityToReserve);
-        inventory.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Rezerve edilmiş stoku serbest bırakır (sipariş iptal edildiğinde)
-     * 
-     * @param inventory güncellenecek envanter
-     * @param quantityToRelease serbest bırakılacak miktar
-     * @throws IllegalArgumentException miktar geçersizse veya rezerve miktardan fazlaysa
-     */
-    public void releaseReservedStock(Inventory inventory, int quantityToRelease) {
-        if (quantityToRelease <= 0) {
-            throw new IllegalArgumentException("Serbest bırakılacak miktar pozitif olmalıdır");
-        }
-
-        if (quantityToRelease > inventory.getReserved()) {
-            throw new IllegalArgumentException(
-                String.format("Serbest bırakılacak miktar (%d), rezerve miktardan (%d) fazla olamaz",
-                    quantityToRelease, inventory.getReserved())
-            );
-        }
-
-        inventory.setReserved(inventory.getReserved() - quantityToRelease);
-        inventory.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Stok miktarını artırır (yeni ürün geldiğinde)
-     * 
-     * @param inventory güncellenecek envanter
-     * @param quantityToAdd eklenecek miktar
-     * @throws IllegalArgumentException miktar geçersizse
-     */
-    public void addStock(Inventory inventory, int quantityToAdd) {
-        if (quantityToAdd <= 0) {
-            throw new IllegalArgumentException("Eklenecek miktar pozitif olmalıdır");
-        }
-
-        inventory.setQuantity(inventory.getQuantity() + quantityToAdd);
-        inventory.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Rezerve edilmiş stoku teyit eder ve toplam stoktan düşer (sipariş tamamlandığında)
-     * 
-     * @param inventory güncellenecek envanter
-     * @param quantityToConfirm teyit edilecek miktar
-     * @throws IllegalArgumentException miktar geçersizse
-     */
-    public void confirmReservedStock(Inventory inventory, int quantityToConfirm) {
-        if (quantityToConfirm <= 0) {
-            throw new IllegalArgumentException("Teyit edilecek miktar pozitif olmalıdır");
-        }
-
-        if (quantityToConfirm > inventory.getReserved()) {
-            throw new IllegalArgumentException(
-                String.format("Teyit edilecek miktar (%d), rezerve miktardan (%d) fazla olamaz",
-                    quantityToConfirm, inventory.getReserved())
-            );
-        }
-
-        inventory.setQuantity(inventory.getQuantity() - quantityToConfirm);
-        inventory.setReserved(inventory.getReserved() - quantityToConfirm);
-        inventory.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Depo konumunu günceller
-     * 
-     * @param inventory güncellenecek envanter
-     * @param warehouseLocation yeni depo konumu
-     */
-    public void updateWarehouseLocation(Inventory inventory, String warehouseLocation) {
-        inventory.setWarehouseLocation(warehouseLocation);
-        inventory.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Stok durumunun geçerli olup olmadığını kontrol eder
-     * 
-     * @param inventory kontrol edilecek envanter
-     * @throws IllegalStateException stok durumu geçersizse
-     */
-    public void validateInventoryState(Inventory inventory) {
-        if (inventory.getQuantity() < 0) {
-            throw new IllegalStateException("Stok miktarı negatif olamaz");
-        }
-
-        if (inventory.getReserved() < 0) {
-            throw new IllegalStateException("Rezerve miktar negatif olamaz");
-        }
-
-        if (inventory.getReserved() > inventory.getQuantity()) {
-            throw new IllegalStateException(
-                String.format("Rezerve miktar (%d), toplam stok miktarından (%d) fazla olamaz",
-                    inventory.getReserved(), inventory.getQuantity())
-            );
-        }
-    }
-
-    /**
-     * Stokta ürün var mı kontrol eder
-     * 
-     * @param inventory kontrol edilecek envanter
-     * @return stokta varsa true, yoksa false
-     */
-    public boolean isInStock(Inventory inventory) {
-        return getAvailableQuantity(inventory) > 0;
-    }
-
-    /**
-     * Stok kritik seviyede mi kontrol eder
-     * 
-     * @param inventory kontrol edilecek envanter
      * @param threshold eşik değeri
-     * @return stok eşik değerinin altındaysa true
+     * @return düşük stoklu ürünler
      */
-    public boolean isLowStock(Inventory inventory, int threshold) {
-        if (threshold < 0) {
-            throw new IllegalArgumentException("Eşik değeri negatif olamaz");
-        }
-        return getAvailableQuantity(inventory) < threshold;
+    @Transactional(readOnly = true)
+    public List<Inventory> getLowStockItems(Integer threshold) {
+        log.info("Getting low stock items with threshold: {}", threshold);
+        return inventoryRepository.findLowStockItems(threshold);
     }
 
     /**
-     * Stok tükendi mi kontrol eder
+     * Stok tükenmiş ürünleri getir
      * 
-     * @param inventory kontrol edilecek envanter
-     * @return stok tükendiyse true
+     * @return stok tükenmiş ürünler
      */
-    public boolean isOutOfStock(Inventory inventory) {
-        return getAvailableQuantity(inventory) <= 0;
+    @Transactional(readOnly = true)
+    public List<Inventory> getOutOfStockItems() {
+        log.info("Getting out of stock items");
+        return inventoryRepository.findOutOfStockItems();
+    }
+
+    // ==================== SKU-BASED METHODS ====================
+
+    /**
+     * Stok kaydı oluştur
+     * 
+     * @param sku ürün SKU
+     * @param initialQuantity başlangıç stok miktarı
+     * @return oluşturulan stok kaydı
+     */
+    public Inventory createInventory(String sku, Integer initialQuantity) {
+        log.info("Creating inventory for SKU: {} with quantity: {}", sku, initialQuantity);
+        
+        Product product = productRepository.findBySku(sku)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + sku));
+
+        if (inventoryRepository.findByProductSku(sku).isPresent()) {
+            throw new IllegalArgumentException("Inventory already exists for SKU: " + sku);
+        }
+
+        Inventory inventory = Inventory.builder()
+                .product(product)
+                .quantity(initialQuantity)
+                .reserved(0)
+                .updatedAt(Instant.now())
+                .version(0)
+                .build();
+
+        return inventoryRepository.save(inventory);
+    }
+
+    /**
+     * Stok miktarını artır
+     * 
+     * @param sku ürün SKU
+     * @param quantity artırılacak miktar
+     * @return güncellenen stok kaydı
+     */
+    public Inventory increaseStock(String sku, Integer quantity) {
+        log.info("Increasing stock for SKU: {} by quantity: {}", sku, quantity);
+        
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+
+        Inventory inventory = getInventoryBySku(sku);
+        
+        int updatedRows = inventoryRepository.increaseStockBySku(sku, quantity);
+        if (updatedRows == 0) {
+            throw new IllegalStateException("Failed to increase stock for SKU: " + sku);
+        }
+
+        // Refresh entity to get updated data
+        inventoryRepository.flush();
+        return inventoryRepository.findByProductSku(sku)
+                .orElseThrow(() -> new IllegalStateException("Inventory not found after update: " + sku));
+    }
+
+    /**
+     * Stok rezervasyonu yap
+     * 
+     * @param sku ürün SKU
+     * @param quantity rezerve edilecek miktar
+     * @return rezervasyon başarılı mı
+     */
+    @Transactional
+    public boolean reserveStock(String sku, Integer quantity) {
+        log.info("Reserving stock for SKU: {} quantity: {}", sku, quantity);
+        
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+
+        // Pessimistic lock ile stok kaydını getir
+        Optional<Inventory> inventoryOpt = inventoryRepository.findByProductSkuWithLock(sku);
+        if (inventoryOpt.isEmpty()) {
+            throw new IllegalArgumentException("Inventory not found for SKU: " + sku);
+        }
+
+        Inventory inventory = inventoryOpt.get();
+        
+        // Stok yeterli mi kontrol et
+        if (inventory.getQuantity() < quantity) {
+            log.warn("Insufficient stock for SKU: {} requested: {} available: {}", 
+                    sku, quantity, inventory.getQuantity());
+            return false;
+        }
+
+        // Optimistic locking ile stok azalt ve rezerve et
+        int updatedRows = inventoryRepository.decreaseStockBySku(
+                sku, 
+                quantity, 
+                inventory.getVersion()
+        );
+
+        if (updatedRows == 0) {
+            log.warn("Failed to reserve stock for SKU: {} (version conflict)", sku);
+            return false;
+        }
+
+        log.info("Successfully reserved {} units for SKU: {}", quantity, sku);
+        return true;
+    }
+
+    /**
+     * Rezervasyonu onayla
+     * 
+     * @param sku ürün SKU
+     * @param quantity onaylanacak miktar
+     * @return onay başarılı mı
+     */
+    @Transactional
+    public boolean confirmReservation(String sku, Integer quantity) {
+        log.info("Confirming reservation for SKU: {} quantity: {}", sku, quantity);
+        
+        Inventory inventory = getInventoryBySku(sku);
+        
+        if (inventory.getReserved() < quantity) {
+            throw new IllegalArgumentException("Insufficient reserved stock for SKU: " + sku);
+        }
+
+        int updatedRows = inventoryRepository.confirmReservationBySku(
+                sku, 
+                quantity, 
+                inventory.getVersion()
+        );
+
+        if (updatedRows == 0) {
+            throw new IllegalStateException("Failed to confirm reservation for SKU: " + sku);
+        }
+
+        log.info("Successfully confirmed reservation for SKU: {} quantity: {}", sku, quantity);
+        return true;
+    }
+
+    /**
+     * Rezervasyonu iptal et
+     * 
+     * @param sku ürün SKU
+     * @param quantity iptal edilecek miktar
+     * @return iptal başarılı mı
+     */
+    @Transactional
+    public boolean cancelReservation(String sku, Integer quantity) {
+        log.info("Cancelling reservation for SKU: {} quantity: {}", sku, quantity);
+        
+        Inventory inventory = getInventoryBySku(sku);
+        
+        if (inventory.getReserved() < quantity) {
+            throw new IllegalArgumentException("Insufficient reserved stock for SKU: " + sku);
+        }
+
+        int updatedRows = inventoryRepository.cancelReservationBySku(
+                sku, 
+                quantity, 
+                inventory.getVersion()
+        );
+
+        if (updatedRows == 0) {
+            throw new IllegalStateException("Failed to cancel reservation for SKU: " + sku);
+        }
+
+        log.info("Successfully cancelled reservation for SKU: {} quantity: {}", sku, quantity);
+        return true;
+    }
+
+    /**
+     * Stok bilgilerini getir
+     * 
+     * @param sku ürün SKU
+     * @return stok bilgileri
+     */
+    @Transactional(readOnly = true)
+    public Inventory getInventoryBySku(String sku) {
+        return inventoryRepository.findByProductSku(sku)
+                .orElseThrow(() -> new IllegalArgumentException("Inventory not found for SKU: " + sku));
+    }
+
+    /**
+     * Stok durumunu kontrol et
+     * 
+     * @param sku ürün SKU
+     * @param requestedQuantity istenen miktar
+     * @return stok yeterli mi
+     */
+    @Transactional(readOnly = true)
+    public boolean isStockAvailable(String sku, Integer requestedQuantity) {
+        Optional<Inventory> inventoryOpt = inventoryRepository.findByProductSku(sku);
+        if (inventoryOpt.isEmpty()) {
+            return false;
+        }
+
+        Inventory inventory = inventoryOpt.get();
+        return inventory.getQuantity() >= requestedQuantity;
+    }
+
+    /**
+     * Mevcut stok miktarını getir
+     * 
+     * @param sku ürün SKU
+     * @return mevcut stok miktarı
+     */
+    @Transactional(readOnly = true)
+    public Integer getAvailableStock(String sku) {
+        Optional<Inventory> inventoryOpt = inventoryRepository.findByProductSku(sku);
+        if (inventoryOpt.isEmpty()) {
+            return 0;
+        }
+
+        return inventoryOpt.get().getQuantity();
     }
 }

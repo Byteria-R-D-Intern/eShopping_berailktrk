@@ -10,10 +10,7 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 
-/**
- * Swagger/OpenAPI konfigürasyonu
- * JWT Bearer token authentication için
- */
+// Swagger/OpenAPI Configuration - JWT Bearer token authentication için
 @Configuration
 public class SwaggerConfig {
 

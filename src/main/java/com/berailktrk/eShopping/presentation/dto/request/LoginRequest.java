@@ -7,9 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * Kullanıcı giriş isteği DTO
- */
+
 @Data
 @Builder
 @NoArgsConstructor

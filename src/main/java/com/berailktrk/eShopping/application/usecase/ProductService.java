@@ -19,11 +19,10 @@ import com.berailktrk.eShopping.presentation.dto.response.ProductResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Product yönetimi için service
- * ADMIN: Tüm CRUD işlemleri
- * USER: Sadece listeleme ve görüntüleme
- */
+import com.berailktrk.eShopping.application.mapper.ProductMapper;
+
+// Product Service - Domain ve infrastructure arasındaki orchestration
+// ADMIN: Tüm CRUD işlemleri, USER: Sadece listeleme ve görüntüleme
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,6 +30,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
+    private final ProductMapper productMapper;
 
     /**
      * Yeni ürün oluştur (ADMIN)
@@ -72,7 +72,7 @@ public class ProductService {
                      savedProduct.getSku(), request.getInitialStockQuantity());
         }
 
-        return ProductResponse.fromProduct(savedProduct);
+        return productMapper.toResponse(savedProduct);
     }
 
     /**
@@ -110,7 +110,7 @@ public class ProductService {
         Product updatedProduct = productRepository.save(product);
         
         log.info("Product updated: {}", updatedProduct.getSku());
-        return ProductResponse.fromProduct(updatedProduct);
+        return productMapper.toResponse(updatedProduct);
     }
 
     /**
@@ -142,13 +142,13 @@ public class ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + productId));
 
-        // Stok bilgisini getir
-        return inventoryRepository.findByProductId(productId)
-                .map(inventory -> ProductResponse.fromProductWithStock(
+        // Stok bilgisini getir ve DTO'ya dönüştür
+        return inventoryRepository.findByProduct(product)
+                .map(inventory -> productMapper.toResponseWithStock(
                         product, 
                         inventory.getQuantity(), 
                         inventory.getReserved()))
-                .orElse(ProductResponse.fromProduct(product));
+                .orElse(productMapper.toResponse(product));
     }
 
     /**
@@ -161,13 +161,13 @@ public class ProductService {
         Product product = productRepository.findBySku(sku)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + sku));
 
-        // Stok bilgisini getir
-        return inventoryRepository.findByProductId(product.getId())
-                .map(inventory -> ProductResponse.fromProductWithStock(
+        // Stok bilgisini getir ve DTO'ya dönüştür
+        return inventoryRepository.findByProduct(product)
+                .map(inventory -> productMapper.toResponseWithStock(
                         product, 
                         inventory.getQuantity(), 
                         inventory.getReserved()))
-                .orElse(ProductResponse.fromProduct(product));
+                .orElse(productMapper.toResponse(product));
     }
 
     /**
@@ -178,7 +178,7 @@ public class ProductService {
         log.debug("Fetching all active products");
 
         return productRepository.findByIsActiveTrue().stream()
-                .map(ProductResponse::fromProduct)
+                .map(productMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -190,7 +190,7 @@ public class ProductService {
         log.debug("Fetching all products (including inactive)");
 
         return productRepository.findAll().stream()
-                .map(ProductResponse::fromProduct)
+                .map(productMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
@@ -202,7 +202,7 @@ public class ProductService {
         log.debug("Searching products with name containing: {}", name);
 
         return productRepository.searchByName(name).stream()
-                .map(ProductResponse::fromProduct)
+                .map(productMapper::toResponse)
                 .collect(Collectors.toList());
     }
 }

@@ -16,9 +16,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
-/**
- * JWT token oluşturma ve doğrulama servisi
- */
+// JWT Provider - Token oluşturma ve doğrulama servisi
 @Component
 public class JwtProvider {
 
@@ -32,12 +30,7 @@ public class JwtProvider {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
-    /**
-     * Kullanıcı için JWT token oluşturur
-     * 
-     * @param user kullanıcı
-     * @return JWT token
-     */
+    // Kullanıcı için JWT token oluştur
     public String generateToken(User user) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", user.getId().toString());
@@ -56,12 +49,7 @@ public class JwtProvider {
                 .compact();
     }
 
-    /**
-     * Token'dan email çıkarır
-     * 
-     * @param token JWT token
-     * @return email
-     */
+    // Token'dan email çıkar
     public String getEmailFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -72,12 +60,7 @@ public class JwtProvider {
         return claims.getSubject();
     }
 
-    /**
-     * Token'dan user ID çıkarır
-     * 
-     * @param token JWT token
-     * @return user ID
-     */
+    // Token'dan user ID çıkar
     public UUID getUserIdFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -88,12 +71,7 @@ public class JwtProvider {
         return UUID.fromString(claims.get("userId", String.class));
     }
 
-    /**
-     * Token'ı doğrular
-     * 
-     * @param token JWT token
-     * @return geçerliyse true
-     */
+    // Token'ı doğrula - Geçerliyse true döner
     public boolean validateToken(String token) {
         try {
             Jwts.parser()
@@ -106,11 +84,7 @@ public class JwtProvider {
         }
     }
 
-    /**
-     * Token süresini döndürür (milisaniye)
-     * 
-     * @return token süresi
-     */
+    // Token süresini döndür (milisaniye)
     public Long getJwtExpiration() {
         return jwtExpiration;
     }

@@ -19,10 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Authentication REST controller
- * Kullanıcı kayıt ve giriş endpoint'leri
- */
+// Authentication REST Controller - Kullanıcı kayıt ve giriş endpoint'leri
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -31,45 +28,21 @@ public class AuthController {
 
     private final AuthenticationUseCase authenticationUseCase;
 
-    /**
-     * Authorization header'dan token'ı ayıklar
-     */
-    private String extractToken(String authorizationHeader) {
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            return authorizationHeader.substring(7);
-        }
-        return authorizationHeader != null ? authorizationHeader.trim() : null;
-    }
-
-    /**
-     * Kullanıcı kaydı
-     * 
-     * POST /api/auth/register
-     * 
-     * @param request kayıt isteği
-     * @return authentication yanıtı
-     */
-    @Operation(summary = "Kullanıcı kaydı", description = "Yeni bir kullanıcı kaydı oluşturur ve JWT token döner.")
+    // Kullanıcı kaydı - Yeni kullanıcı oluştur ve JWT token döndür
+    @Operation(summary = "Kullanıcı kaydı", description = "Yeni bir kullanıcı kaydı oluşturur ve sadece JWT token string döner.")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "201", description = "Kayıt başarılı, JWT token döndü"),
         @ApiResponse(responseCode = "400", description = "Validation hatası veya email zaten kullanımda"),
         @ApiResponse(responseCode = "500", description = "Sunucu hatası")
     })
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authenticationUseCase.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response.getToken());
     }
 
-    /**
-     * Kullanıcı girişi
-     * 
-     * POST /api/auth/login
-     * 
-     * @param request giriş isteği
-     * @return authentication yanıtı
-     */
-    @Operation(summary = "Kullanıcı girişi", description = "Email ve şifre ile giriş yapar, JWT token döner.")
+    // Kullanıcı girişi - Email ve şifre ile giriş yap, JWT token döndür
+    @Operation(summary = "Kullanıcı girişi", description = "Email ve şifre ile giriş yapar, sadece JWT token string döner.")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Giriş başarılı, JWT token döndü"),
         @ApiResponse(responseCode = "401", description = "Email veya şifre hatalı"),
@@ -77,8 +50,8 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "Sunucu hatası")
     })
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<String> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authenticationUseCase.login(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(response.getToken());
     }
 }

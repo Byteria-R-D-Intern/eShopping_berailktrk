@@ -16,121 +16,66 @@ import com.berailktrk.eShopping.domain.model.Product;
 
 import jakarta.persistence.LockModeType;
 
-/**
- * Inventory repository interface
- * Stok yönetimi ve concurrency kontrolü için repository
- * 
- * ÖNEMLİ: Stok güncellemeleri için pessimistic locking kullanılır
- * Race condition'ları önlemek için kritik işlemlerde lock kullanın
- */
+// Inventory Repository - Stok yönetimi ve concurrency kontrolü
+// ÖNEMLİ: Race condition'ları önlemek için pessimistic locking kullanılır
 @Repository
 public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
 
-    /**
-     * Ürüne göre stok kaydı bul
-     * 
-     * @param product ürün
-     * @return stok kaydı (varsa)
-     */
+    // Ürüne göre stok kaydı bul
     Optional<Inventory> findByProduct(Product product);
 
-    /**
-     * Ürün ID'ye göre stok kaydı bul
-     * 
-     * @param productId ürün ID
-     * @return stok kaydı (varsa)
-     */
-    @Query("SELECT i FROM Inventory i WHERE i.product.id = :productId")
-    Optional<Inventory> findByProductId(@Param("productId") UUID productId);
-
-    /**
-     * Ürün ID'ye göre stok kaydını pessimistic lock ile getir
-     * Concurrency kontrolü için kullanılır
-     * 
-     * @param productId ürün ID
-     * @return stok kaydı (varsa)
-     */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT i FROM Inventory i WHERE i.product.id = :productId")
-    Optional<Inventory> findByProductIdWithLock(@Param("productId") UUID productId);
-
-    /**
-     * Düşük stoklu ürünleri getir (threshold altında)
-     * 
-     * @param threshold eşik değeri
-     * @return düşük stoklu ürünler
-     */
+    // Düşük stoklu ürünleri getir - Threshold altında
     @Query("SELECT i FROM Inventory i WHERE i.quantity <= :threshold AND i.product.isActive = true")
     List<Inventory> findLowStockItems(@Param("threshold") Integer threshold);
 
-    /**
-     * Tükenen stokları getir
-     * 
-     * @return stok tükenmiş ürünler
-     */
+    // Tükenen stokları getir - Quantity = 0
     @Query("SELECT i FROM Inventory i WHERE i.quantity = 0 AND i.product.isActive = true")
     List<Inventory> findOutOfStockItems();
 
-    /**
-     * Stok miktarını azalt (atomic operation with version check)
-     * 
-     * @param productId ürün ID
-     * @param quantity azaltılacak miktar
-     * @param currentVersion mevcut version (optimistic locking için)
-     * @return etkilenen satır sayısı
-     */
+    // ==================== SKU-BASED METHODS ====================
+
+    // SKU'ya göre stok kaydı bul
+    @Query("SELECT i FROM Inventory i WHERE i.product.sku = :sku")
+    Optional<Inventory> findByProductSku(@Param("sku") String sku);
+
+    // SKU'ya göre stok kaydını pessimistic lock ile getir
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Inventory i WHERE i.product.sku = :sku")
+    Optional<Inventory> findByProductSkuWithLock(@Param("sku") String sku);
+
+    // SKU'ya göre stok miktarını artır
+    @Modifying
+    @Query("UPDATE Inventory i SET i.quantity = i.quantity + :quantity, " +
+           "i.version = i.version + 1 " +
+           "WHERE i.product.sku = :sku")
+    int increaseStockBySku(@Param("sku") String sku, @Param("quantity") Integer quantity);
+
+    // SKU'ya göre stok miktarını azalt - Rezervasyon için (optimistic locking)
     @Modifying
     @Query("UPDATE Inventory i SET i.quantity = i.quantity - :quantity, " +
            "i.reserved = i.reserved + :quantity, " +
            "i.version = i.version + 1 " +
-           "WHERE i.product.id = :productId AND i.quantity >= :quantity AND i.version = :currentVersion")
-    int decreaseStock(@Param("productId") UUID productId, 
-                      @Param("quantity") Integer quantity, 
-                      @Param("currentVersion") Integer currentVersion);
-
-    /**
-     * Reserve edilen stoku onaylayıp available'dan düş
-     * 
-     * @param productId ürün ID
-     * @param quantity miktar
-     * @param currentVersion mevcut version
-     * @return etkilenen satır sayısı
-     */
-    @Modifying
-    @Query("UPDATE Inventory i SET i.reserved = i.reserved - :quantity, " +
-           "i.version = i.version + 1 " +
-           "WHERE i.product.id = :productId AND i.reserved >= :quantity AND i.version = :currentVersion")
-    int confirmReservation(@Param("productId") UUID productId, 
+           "WHERE i.product.sku = :sku AND i.quantity >= :quantity AND i.version = :currentVersion")
+    int decreaseStockBySku(@Param("sku") String sku, 
                            @Param("quantity") Integer quantity, 
                            @Param("currentVersion") Integer currentVersion);
 
-    /**
-     * Reserve edilen stoku iptal et ve geri döndür
-     * 
-     * @param productId ürün ID
-     * @param quantity miktar
-     * @param currentVersion mevcut version
-     * @return etkilenen satır sayısı
-     */
+    // SKU'ya göre rezervasyonu onayla - Reserved'dan düş
+    @Modifying
+    @Query("UPDATE Inventory i SET i.reserved = i.reserved - :quantity, " +
+           "i.version = i.version + 1 " +
+           "WHERE i.product.sku = :sku AND i.reserved >= :quantity AND i.version = :currentVersion")
+    int confirmReservationBySku(@Param("sku") String sku, 
+                                @Param("quantity") Integer quantity, 
+                                @Param("currentVersion") Integer currentVersion);
+
+    // SKU'ya göre rezervasyonu iptal et - Quantity'ye geri ekle
     @Modifying
     @Query("UPDATE Inventory i SET i.quantity = i.quantity + :quantity, " +
            "i.reserved = i.reserved - :quantity, " +
            "i.version = i.version + 1 " +
-           "WHERE i.product.id = :productId AND i.reserved >= :quantity AND i.version = :currentVersion")
-    int cancelReservation(@Param("productId") UUID productId, 
-                          @Param("quantity") Integer quantity, 
-                          @Param("currentVersion") Integer currentVersion);
-
-    /**
-     * Stok miktarını artır (iade veya stok ekleme için)
-     * 
-     * @param productId ürün ID
-     * @param quantity artırılacak miktar
-     * @return etkilenen satır sayısı
-     */
-    @Modifying
-    @Query("UPDATE Inventory i SET i.quantity = i.quantity + :quantity, " +
-           "i.version = i.version + 1 " +
-           "WHERE i.product.id = :productId")
-    int increaseStock(@Param("productId") UUID productId, @Param("quantity") Integer quantity);
+           "WHERE i.product.sku = :sku AND i.reserved >= :quantity AND i.version = :currentVersion")
+    int cancelReservationBySku(@Param("sku") String sku, 
+                               @Param("quantity") Integer quantity, 
+                               @Param("currentVersion") Integer currentVersion);
 }

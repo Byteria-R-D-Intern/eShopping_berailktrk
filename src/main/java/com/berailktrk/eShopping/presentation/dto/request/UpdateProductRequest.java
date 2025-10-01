@@ -10,10 +10,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * Ürün güncelleme request DTO
- * Tüm alanlar opsiyonel - sadece gönderilen alanlar güncellenir
- */
 @Data
 @Builder
 @NoArgsConstructor

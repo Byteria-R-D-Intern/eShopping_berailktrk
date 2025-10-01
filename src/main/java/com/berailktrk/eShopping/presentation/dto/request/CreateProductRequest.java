@@ -12,9 +12,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * Yeni ürün oluşturma request DTO
- */
+
 @Data
 @Builder
 @NoArgsConstructor

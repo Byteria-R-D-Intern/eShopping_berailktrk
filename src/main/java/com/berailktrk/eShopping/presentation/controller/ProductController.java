@@ -28,12 +28,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Product yönetimi controller
- * 
- * PUBLIC endpoints: Ürün listeleme ve görüntüleme
- * ADMIN endpoints: CRUD işlemleri
- */
+// Product Controller - Ürün yönetimi (PUBLIC: Listeleme, ADMIN: CRUD)
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
@@ -43,10 +38,7 @@ public class ProductController {
 
     private final ProductService productService;
 
-    /**
-     * Tüm aktif ürünleri listele
-     * PUBLIC - Authentication gerekmez
-     */
+    // Tüm aktif ürünleri listele - PUBLIC endpoint (Authentication gerekmez)
     @GetMapping
     @Operation(summary = "Tüm aktif ürünleri listele", description = "Kullanıcılar için aktif ürünleri getirir")
     public ResponseEntity<List<ProductResponse>> getAllActiveProducts() {
@@ -55,10 +47,7 @@ public class ProductController {
         return ResponseEntity.ok(products);
     }
 
-    /**
-     * ID'ye göre ürün getir
-     * PUBLIC - Authentication gerekmez
-     */
+    // ID'ye göre ürün getir - PUBLIC endpoint
     @GetMapping("/{productId}")
     @Operation(summary = "ID'ye göre ürün getir", description = "Belirli bir ürünün detaylarını getirir")
     public ResponseEntity<ProductResponse> getProductById(@PathVariable UUID productId) {
@@ -67,10 +56,7 @@ public class ProductController {
         return ResponseEntity.ok(product);
     }
 
-    /**
-     * SKU'ya göre ürün getir
-     * PUBLIC - Authentication gerekmez
-     */
+    // SKU'ya göre ürün getir - PUBLIC endpoint
     @GetMapping("/sku/{sku}")
     @Operation(summary = "SKU'ya göre ürün getir", description = "SKU ile ürün detaylarını getirir")
     public ResponseEntity<ProductResponse> getProductBySku(@PathVariable String sku) {
@@ -79,10 +65,7 @@ public class ProductController {
         return ResponseEntity.ok(product);
     }
 
-    /**
-     * İsme göre ürün ara
-     * PUBLIC - Authentication gerekmez
-     */
+    // İsme göre ürün ara - PUBLIC endpoint (case-insensitive)
     @GetMapping("/search")
     @Operation(summary = "İsme göre ürün ara", description = "Ürün ismine göre arama yapar (case-insensitive)")
     public ResponseEntity<List<ProductResponse>> searchProducts(@RequestParam String name) {
@@ -95,10 +78,7 @@ public class ProductController {
     // ADMIN ENDPOINTS
     // ========================================
 
-    /**
-     * Tüm ürünleri listele (aktif + pasif)
-     * ADMIN ONLY
-     */
+    // Tüm ürünleri listele - Aktif ve pasif tüm ürünler (ADMIN ONLY)
     @GetMapping("/admin/all")
     @Operation(
         summary = "Tüm ürünleri listele (Admin)", 
@@ -112,10 +92,7 @@ public class ProductController {
         return ResponseEntity.ok(products);
     }
 
-    /**
-     * Yeni ürün oluştur
-     * ADMIN ONLY
-     */
+    // Yeni ürün oluştur - ADMIN ONLY
     @PostMapping("/admin")
     @Operation(
         summary = "Yeni ürün oluştur (Admin)", 
@@ -129,10 +106,7 @@ public class ProductController {
         return ResponseEntity.status(HttpStatus.CREATED).body(product);
     }
 
-    /**
-     * Ürün güncelle
-     * ADMIN ONLY
-     */
+    // Ürün güncelle - ADMIN ONLY
     @PutMapping("/admin/{productId}")
     @Operation(
         summary = "Ürün güncelle (Admin)", 
@@ -148,10 +122,7 @@ public class ProductController {
         return ResponseEntity.ok(product);
     }
 
-    /**
-     * Ürün sil (soft delete)
-     * ADMIN ONLY
-     */
+    // Ürün sil - Soft delete (ADMIN ONLY)
     @DeleteMapping("/admin/{productId}")
     @Operation(
         summary = "Ürün sil (Admin)", 

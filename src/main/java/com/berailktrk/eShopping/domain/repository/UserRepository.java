@@ -8,25 +8,13 @@ import org.springframework.stereotype.Repository;
 
 import com.berailktrk.eShopping.domain.model.User;
 
-/**
- * User repository interface
- */
+// User Repository - Kullanıcı CRUD işlemleri
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
 
-    /**
-     * Email'e göre kullanıcı bul
-     * 
-     * @param email kullanıcı email
-     * @return kullanıcı (varsa)
-     */
+    // Email'e göre kullanıcı bul
     Optional<User> findByEmail(String email);
 
-    /**
-     * Email'in var olup olmadığını kontrol et
-     * 
-     * @param email kontrol edilecek email
-     * @return varsa true
-     */
+    // Email'in var olup olmadığını kontrol et
     boolean existsByEmail(String email);
 }

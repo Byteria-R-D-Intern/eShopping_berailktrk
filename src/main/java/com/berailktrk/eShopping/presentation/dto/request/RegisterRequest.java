@@ -10,9 +10,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * Kullanıcı kayıt isteği DTO
- */
+
 @Data
 @Builder
 @NoArgsConstructor

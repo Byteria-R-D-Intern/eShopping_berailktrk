@@ -17,115 +17,48 @@ import com.berailktrk.eShopping.domain.model.OrderStatus;
 import com.berailktrk.eShopping.domain.model.PaymentStatus;
 import com.berailktrk.eShopping.domain.model.User;
 
-/**
- * Order repository interface
- * Sipariş yönetimi ve sorgulama işlemleri için repository
- */
+// Order Repository - Sipariş yönetimi ve sorgulama işlemleri
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
-    /**
-     * Kullanıcının tüm siparişlerini getir
-     * 
-     * @param user kullanıcı
-     * @param pageable sayfalama bilgisi
-     * @return siparişler
-     */
+    // Kullanıcının tüm siparişlerini getir
     Page<Order> findByUser(User user, Pageable pageable);
 
-    /**
-     * Kullanıcı ID'ye göre siparişleri getir
-     * 
-     * @param userId kullanıcı ID
-     * @param pageable sayfalama bilgisi
-     * @return siparişler
-     */
+    // Kullanıcı ID'ye göre siparişleri getir - Tarih sıralı
     @Query("SELECT o FROM Order o WHERE o.user.id = :userId ORDER BY o.createdAt DESC")
     Page<Order> findByUserId(@Param("userId") UUID userId, Pageable pageable);
 
-    /**
-     * Kullanıcının belirli durumdaki siparişlerini getir
-     * 
-     * @param userId kullanıcı ID
-     * @param status sipariş durumu
-     * @return siparişler
-     */
+    // Kullanıcının belirli durumdaki siparişlerini getir
     @Query("SELECT o FROM Order o WHERE o.user.id = :userId AND o.status = :status ORDER BY o.createdAt DESC")
     List<Order> findByUserIdAndStatus(@Param("userId") UUID userId, @Param("status") OrderStatus status);
 
-    /**
-     * Durum bazlı siparişleri getir
-     * 
-     * @param status sipariş durumu
-     * @param pageable sayfalama bilgisi
-     * @return siparişler
-     */
+    // Durum bazlı siparişleri getir
     Page<Order> findByStatus(OrderStatus status, Pageable pageable);
 
-    /**
-     * Ödeme durumuna göre siparişleri getir
-     * 
-     * @param paymentStatus ödeme durumu
-     * @param pageable sayfalama bilgisi
-     * @return siparişler
-     */
+    // Ödeme durumuna göre siparişleri getir
     Page<Order> findByPaymentStatus(PaymentStatus paymentStatus, Pageable pageable);
 
-    /**
-     * Sipariş numarasına göre sipariş bul
-     * 
-     * @param orderNumber sipariş numarası
-     * @return sipariş (varsa)
-     */
+    // Sipariş numarasına göre sipariş bul
     Optional<Order> findByOrderNumber(Long orderNumber);
 
-    /**
-     * Belirli tarih aralığındaki siparişleri getir
-     * 
-     * @param startDate başlangıç tarihi
-     * @param endDate bitiş tarihi
-     * @param pageable sayfalama bilgisi
-     * @return siparişler
-     */
+    // Belirli tarih aralığındaki siparişleri getir
     @Query("SELECT o FROM Order o WHERE o.createdAt BETWEEN :startDate AND :endDate ORDER BY o.createdAt DESC")
     Page<Order> findByDateRange(@Param("startDate") Instant startDate, 
                                  @Param("endDate") Instant endDate, 
                                  Pageable pageable);
 
-    /**
-     * Kullanıcının son N siparişini getir
-     * 
-     * @param userId kullanıcı ID
-     * @param limit limit sayısı
-     * @return siparişler
-     */
+    // Kullanıcının son N siparişini getir
     @Query("SELECT o FROM Order o WHERE o.user.id = :userId ORDER BY o.createdAt DESC")
     List<Order> findRecentOrdersByUserId(@Param("userId") UUID userId, Pageable pageable);
 
-    /**
-     * Pending durumundaki eski siparişleri getir (timeout kontrolü için)
-     * 
-     * @param threshold zaman eşiği
-     * @return eski pending siparişler
-     */
+    // Pending durumundaki eski siparişleri getir - Timeout kontrolü için
     @Query("SELECT o FROM Order o WHERE o.status = 'PENDING' AND o.createdAt < :threshold")
     List<Order> findStalePendingOrders(@Param("threshold") Instant threshold);
 
-    /**
-     * Kullanıcının toplam sipariş sayısını getir
-     * 
-     * @param userId kullanıcı ID
-     * @return sipariş sayısı
-     */
+    // Kullanıcının toplam sipariş sayısını getir
     @Query("SELECT COUNT(o) FROM Order o WHERE o.user.id = :userId")
     Long countByUserId(@Param("userId") UUID userId);
 
-    /**
-     * Durum ve ödeme durumuna göre siparişleri getir
-     * 
-     * @param status sipariş durumu
-     * @param paymentStatus ödeme durumu
-     * @return siparişler
-     */
+    // Durum ve ödeme durumuna göre siparişleri getir
     List<Order> findByStatusAndPaymentStatus(OrderStatus status, PaymentStatus paymentStatus);
 }
