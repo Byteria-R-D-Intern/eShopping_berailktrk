@@ -1,229 +1,323 @@
 package com.berailktrk.eShopping.application.usecase;
 
-import java.time.Duration;
+import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Map;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.berailktrk.eShopping.domain.model.Cart;
+import com.berailktrk.eShopping.domain.model.CartItem;
+import com.berailktrk.eShopping.domain.model.Product;
 import com.berailktrk.eShopping.domain.model.User;
+import com.berailktrk.eShopping.domain.repository.CartItemRepository;
+import com.berailktrk.eShopping.domain.repository.CartRepository;
+import com.berailktrk.eShopping.domain.repository.ProductRepository;
+import com.berailktrk.eShopping.domain.repository.UserRepository;
 
-/**
- * Cart entity'si için uygulama servis katmanı
- * Sepet yönetimi ve karmaşık business logic'i yönetir
- */
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+//Cart business logic service
+//Sepet yönetimi, ürün ekleme/çıkarma, stok kontrolü
+
 @Service
+@RequiredArgsConstructor
+@Slf4j
+@Transactional
 public class CartService {
 
-    private static final int CART_EXPIRATION_DAYS = 30; // Sepet 30 gün sonra pasif sayılır
-    private static final int GUEST_CART_EXPIRATION_DAYS = 7; // Misafir sepeti 7 gün sonra pasif sayılır
+    private final CartRepository cartRepository;
+    private final CartItemRepository cartItemRepository;
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+    private final InventoryService inventoryService;
 
-    /**
-     * Sepetin bir kullanıcıya ait olup olmadığını kontrol eder
-     * 
-     * @param cart kontrol edilecek sepet
-     * @return kullanıcıya aitse true, misafir sepetiyse false
-     */
-    public boolean isUserCart(Cart cart) {
-        return cart.getUser() != null;
-    }
+    //Kullanıcının sepetini getir veya oluştur
+    
+    public Cart getOrCreateCart(UUID userId) {
+        log.info("Getting or creating cart for user: {}", userId);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
 
-    /**
-     * Sepetin misafir sepeti olup olmadığını kontrol eder
-     * 
-     * @param cart kontrol edilecek sepet
-     * @return misafir sepetiyse true, değilse false
-     */
-    public boolean isGuestCart(Cart cart) {
-        return cart.getUser() == null && cart.getSessionToken() != null;
-    }
-
-    /**
-     * Sepetin süresi dolmuş mu kontrol eder
-     * 
-     * @param cart kontrol edilecek sepet
-     * @return süre dolmuşsa true, değilse false
-     */
-    public boolean isExpired(Cart cart) {
-        int expirationDays = isGuestCart(cart) ? GUEST_CART_EXPIRATION_DAYS : CART_EXPIRATION_DAYS;
-        Instant expirationTime = cart.getUpdatedAt().plus(Duration.ofDays(expirationDays));
-        return Instant.now().isAfter(expirationTime);
-    }
-
-    /**
-     * Sepetin aktif olup olmadığını kontrol eder
-     * 
-     * @param cart kontrol edilecek sepet
-     * @return aktifse true, süresi dolmuşsa false
-     */
-    public boolean isActive(Cart cart) {
-        return !isExpired(cart);
-    }
-
-    /**
-     * Sepeti kullanıcıya bağlar (misafir kullanıcı giriş yaptığında)
-     * 
-     * @param cart güncelle edilecek sepet
-     * @param user sepete bağlanacak kullanıcı
-     * @throws IllegalArgumentException sepet zaten bir kullanıcıya bağlıysa
-     */
-    public void assignToUser(Cart cart, User user) {
-        if (user == null) {
-            throw new IllegalArgumentException("Kullanıcı null olamaz");
+        Optional<Cart> existingCart = cartRepository.findByUserId(userId);
+        if (existingCart.isPresent()) {
+            Cart cart = existingCart.get();
+            cartRepository.updateCartTimestamp(userId);
+            return cart;
         }
 
-        if (cart.getUser() != null && !cart.getUser().getId().equals(user.getId())) {
-            throw new IllegalArgumentException("Sepet zaten başka bir kullanıcıya ait");
+        // Yeni sepet oluştur
+        Cart newCart = Cart.builder()
+                .user(user)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        return cartRepository.save(newCart);
+    }
+
+    //Sepete ürün ekle
+    
+    public CartItem addToCart(UUID userId, String productSku, Integer quantity) {
+        log.info("Adding product to cart - User: {}, SKU: {}, Quantity: {}", userId, productSku, quantity);
+        
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
         }
 
-        cart.setUser(user);
-        cart.setUpdatedAt(Instant.now());
-    }
+        // Ürünü bul
+        Product product = productRepository.findBySku(productSku)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + productSku));
 
-    /**
-     * Sepet güncellendiğinde updated_at zamanını günceller
-     * 
-     * @param cart güncellenecek sepet
-     */
-    public void touchCart(Cart cart) {
-        cart.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Sepet metadata'sını günceller
-     * 
-     * @param cart güncellenecek sepet
-     * @param metadata yeni metadata
-     */
-    public void updateMetadata(Cart cart, Map<String, Object> metadata) {
-        cart.setMetadata(metadata);
-        cart.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Sepet metadata'sına yeni bir alan ekler veya günceller
-     * 
-     * @param cart güncellenecek sepet
-     * @param key metadata anahtarı
-     * @param value metadata değeri
-     */
-    public void addOrUpdateMetadataField(Cart cart, String key, Object value) {
-        Map<String, Object> metadata = cart.getMetadata();
-        if (metadata == null) {
-            metadata = new java.util.HashMap<>();
-            cart.setMetadata(metadata);
-        }
-        metadata.put(key, value);
-        cart.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Session token oluşturur (misafir sepeti için)
-     * 
-     * @return benzersiz session token
-     */
-    public String generateSessionToken() {
-        return UUID.randomUUID().toString();
-    }
-
-    /**
-     * Sepeti kullanıcıdan ayırır (örn: logout sonrası)
-     * 
-     * @param cart güncellenecek sepet
-     */
-    public void detachFromUser(Cart cart) {
-        cart.setUser(null);
-        cart.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Session token'ı günceller
-     * 
-     * @param cart güncellenecek sepet
-     * @param sessionToken yeni session token
-     */
-    public void updateSessionToken(Cart cart, String sessionToken) {
-        if (sessionToken == null || sessionToken.trim().isEmpty()) {
-            throw new IllegalArgumentException("Session token boş olamaz");
-        }
-        cart.setSessionToken(sessionToken);
-        cart.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Sepeti temizleme için hazırlar (örn: sipariş tamamlandıktan sonra)
-     * Not: Gerçek temizlik CartItem'lar üzerinden yapılır, bu method sadece metadata temizler
-     * 
-     * @param cart temizlenecek sepet
-     */
-    public void clearMetadata(Cart cart) {
-        cart.setMetadata(null);
-        cart.setUpdatedAt(Instant.now());
-    }
-
-    /**
-     * Sepetin yaşını hesaplar (gün cinsinden)
-     * 
-     * @param cart kontrol edilecek sepet
-     * @return sepet yaşı (gün)
-     */
-    public long getCartAgeInDays(Cart cart) {
-        Duration duration = Duration.between(cart.getCreatedAt(), Instant.now());
-        return duration.toDays();
-    }
-
-    /**
-     * Sepetin son güncellemeden sonra ne kadar süre geçtiğini hesaplar (gün cinsinden)
-     * 
-     * @param cart kontrol edilecek sepet
-     * @return son güncelleme sonrası geçen gün sayısı
-     */
-    public long getDaysSinceLastUpdate(Cart cart) {
-        Duration duration = Duration.between(cart.getUpdatedAt(), Instant.now());
-        return duration.toDays();
-    }
-
-    /**
-     * Sepeti doğrular
-     * 
-     * @param cart doğrulanacak sepet
-     * @throws IllegalStateException sepet geçersizse
-     */
-    public void validateCart(Cart cart) {
-        if (cart.getUser() == null && cart.getSessionToken() == null) {
-            throw new IllegalStateException("Sepet ne bir kullanıcıya ne de session token'a sahip");
+        if (!product.getIsActive()) {
+            throw new IllegalArgumentException("Product is not active: " + productSku);
         }
 
-        if (isExpired(cart)) {
-            throw new IllegalStateException("Sepetin süresi dolmuş");
+        // Stok kontrolü
+        if (!inventoryService.isStockAvailable(productSku, quantity)) {
+            throw new IllegalArgumentException("Insufficient stock for product: " + productSku);
+        }
+
+        // Sepeti getir veya oluştur
+        Cart cart = getOrCreateCart(userId);
+
+        // Mevcut cart item'ı kontrol et
+        Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), product.getId());
+        
+        if (existingItem.isPresent()) {
+            // Mevcut item'ı güncelle
+            CartItem cartItem = existingItem.get();
+            Integer newQuantity = cartItem.getQty() + quantity;
+            
+            // Toplam stok kontrolü
+            if (!inventoryService.isStockAvailable(productSku, newQuantity)) {
+                throw new IllegalArgumentException("Insufficient stock for total quantity: " + newQuantity);
+            }
+            
+            cartItem.setQty(newQuantity);
+            CartItem updatedItem = cartItemRepository.save(cartItem);
+            
+            // Stok rezervasyonu yap
+            boolean reserved = inventoryService.reserveStock(productSku, quantity);
+            if (!reserved) {
+                throw new IllegalStateException("Failed to reserve stock for product: " + productSku);
+            }
+            
+            cartRepository.updateCartTimestamp(userId);
+            return updatedItem;
+        } else {
+            // Yeni cart item oluştur
+            CartItem newItem = CartItem.builder()
+                    .cart(cart)
+                    .product(product)
+                    .qty(quantity)
+                    .unitPriceSnapshot(product.getPrice())
+                    .addedAt(Instant.now())
+                    .createdAt(Instant.now())
+                    .build();
+
+            CartItem savedItem = cartItemRepository.save(newItem);
+            
+            // Stok rezervasyonu yap
+            boolean reserved = inventoryService.reserveStock(productSku, quantity);
+            if (!reserved) {
+                cartItemRepository.delete(savedItem);
+                throw new IllegalStateException("Failed to reserve stock for product: " + productSku);
+            }
+            
+            cartRepository.updateCartTimestamp(userId);
+            return savedItem;
         }
     }
 
+    //Kullanıcının sepetindeki tüm ürünleri getir
+    
+    @Transactional(readOnly = true)
+    public List<CartItem> getCartItems(UUID userId) {
+        log.info("Getting cart items for user: {}", userId);
+        
+        Optional<Cart> cart = cartRepository.findByUserId(userId);
+        if (cart.isEmpty()) {
+            return List.of(); // Boş liste döndür
+        }
+
+        return cartItemRepository.findByCartId(cart.get().getId());
+    }
+
+    
+    //Sepet toplam tutarını hesapla
+    
+    @Transactional(readOnly = true)
+    public BigDecimal getCartTotal(UUID userId) {
+        log.info("Calculating cart total for user: {}", userId);
+        
+        List<CartItem> cartItems = getCartItems(userId);
+        
+        return cartItems.stream()
+                .map(item -> item.getUnitPriceSnapshot().multiply(BigDecimal.valueOf(item.getQty())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    //Sepetten ürün çıkar
+    public boolean removeFromCart(UUID userId, String productSku, Integer quantity) {
+        log.info("Removing product from cart - User: {}, SKU: {}, Quantity: {}", userId, productSku, quantity);
+        
+        Cart cart = getOrCreateCart(userId);
+        Product product = productRepository.findBySku(productSku)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + productSku));
+
+        Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), product.getId());
+        if (existingItem.isEmpty()) {
+            throw new IllegalArgumentException("Product not found in cart: " + productSku);
+        }
+
+        CartItem cartItem = existingItem.get();
+        
+        if (quantity == null || quantity >= cartItem.getQty()) {
+            // Tamamını çıkar
+            cartItemRepository.deleteByCartIdAndProductId(cart.getId(), product.getId());
+            inventoryService.cancelReservation(productSku, cartItem.getQty());
+        } else {
+            // Kısmi çıkarma
+            Integer newQuantity = cartItem.getQty() - quantity;
+            cartItem.setQty(newQuantity);
+            cartItemRepository.save(cartItem);
+            inventoryService.cancelReservation(productSku, quantity);
+        }
+
+        cartRepository.updateCartTimestamp(userId);
+        return true;
+    }
+
+    //Sepet kalemi miktarını güncelle
+    
+    public CartItem updateCartItemQuantity(UUID userId, String productSku, Integer newQuantity) {
+        log.info("Updating cart item quantity - User: {}, SKU: {}, New Quantity: {}", userId, productSku, newQuantity);
+        
+        if (newQuantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+
+        Cart cart = getOrCreateCart(userId);
+        Product product = productRepository.findBySku(productSku)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + productSku));
+
+        CartItem existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), product.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Product not found in cart: " + productSku));
+
+        // Stok kontrolü
+        if (!inventoryService.isStockAvailable(productSku, newQuantity)) {
+            throw new IllegalArgumentException("Insufficient stock for quantity: " + newQuantity);
+        }
+
+        Integer oldQuantity = existingItem.getQty();
+        Integer quantityDifference = newQuantity - oldQuantity;
+
+        // Miktar güncelle
+        existingItem.setQty(newQuantity);
+        CartItem updatedItem = cartItemRepository.save(existingItem);
+
+        // Stok rezervasyonu güncelle
+        if (quantityDifference > 0) {
+            boolean reserved = inventoryService.reserveStock(productSku, quantityDifference);
+            if (!reserved) {
+                existingItem.setQty(oldQuantity);
+                cartItemRepository.save(existingItem);
+                throw new IllegalStateException("Failed to reserve additional stock for product: " + productSku);
+            }
+        } else if (quantityDifference < 0) {
+            inventoryService.cancelReservation(productSku, Math.abs(quantityDifference));
+        }
+
+        cartRepository.updateCartTimestamp(userId);
+        return updatedItem;
+    }
+
+    //Sepetteki toplam ürün sayısını getir
+    
+    @Transactional(readOnly = true)
+    public Integer getCartItemCount(UUID userId) {
+        log.info("Getting cart item count for user: {}", userId);
+        
+        Optional<Cart> cart = cartRepository.findByUserId(userId);
+        if (cart.isEmpty()) {
+            return 0;
+        }
+
+        Long count = cartItemRepository.getTotalQuantityByCartId(cart.get().getId());
+        return count.intValue();
+    }
+
+    //Sepeti temizle
+    
+    public boolean clearCart(UUID userId) {
+        log.info("Clearing cart for user: {}", userId);
+        
+        Cart cart = getOrCreateCart(userId);
+        List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
+
+        // Tüm rezervasyonları iptal et
+        for (CartItem item : cartItems) {
+            inventoryService.cancelReservation(item.getProduct().getSku(), item.getQty());
+        }
+
+        // Tüm cart item'ları sil
+        cartItemRepository.deleteByCartId(cart.getId());
+        cartRepository.updateCartTimestamp(userId);
+
+        return true;
+    }
+
     /**
-     * İki sepeti birleştirme işlemi öncesi kontrol yapar
-     * Not: Gerçek birleştirme CartItem seviyesinde yapılır
-     * 
-     * @param sourceCart kaynak sepet
-     * @param targetCart hedef sepet
-     * @throws IllegalArgumentException sepetler birleştirilemezse
+     * Sepet kalemi için toplam fiyat hesapla
+     * Business logic: birim fiyat × miktar
      */
-    public void validateCartMerge(Cart sourceCart, Cart targetCart) {
-        if (sourceCart == null || targetCart == null) {
-            throw new IllegalArgumentException("Kaynak ve hedef sepet null olamaz");
+    public BigDecimal calculateItemTotalPrice(CartItem cartItem) {
+        if (cartItem.getUnitPriceSnapshot() == null || cartItem.getQty() == null) {
+            return BigDecimal.ZERO;
         }
+        return cartItem.getUnitPriceSnapshot().multiply(BigDecimal.valueOf(cartItem.getQty()));
+    }
 
-        if (sourceCart.getId().equals(targetCart.getId())) {
-            throw new IllegalArgumentException("Aynı sepet kendi içine birleştirilemez");
+    /**
+     * Sepet için toplam ürün sayısını hesapla
+     * Business logic: tüm kalemlerin miktar toplamı
+     */
+    public Integer calculateTotalItemCount(List<CartItem> cartItems) {
+        if (cartItems == null || cartItems.isEmpty()) {
+            return 0;
         }
+        return cartItems.stream()
+                .mapToInt(CartItem::getQty)
+                .sum();
+    }
 
-        if (isExpired(sourceCart)) {
-            throw new IllegalArgumentException("Kaynak sepetin süresi dolmuş");
+    /**
+     * Sepet için farklı ürün sayısını hesapla
+     * Business logic: unique product sayısı
+     */
+    public Integer calculateUniqueItemCount(List<CartItem> cartItems) {
+        if (cartItems == null || cartItems.isEmpty()) {
+            return 0;
         }
+        return cartItems.size();
+    }
 
-        if (isExpired(targetCart)) {
-            throw new IllegalArgumentException("Hedef sepetin süresi dolmuş");
+    /**
+     * Sepet için toplam tutarı hesapla
+     * Business logic: tüm kalemlerin toplam fiyatı
+     */
+    public BigDecimal calculateTotalAmount(List<CartItem> cartItems) {
+        if (cartItems == null || cartItems.isEmpty()) {
+            return BigDecimal.ZERO;
         }
+        return cartItems.stream()
+                .map(this::calculateItemTotalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

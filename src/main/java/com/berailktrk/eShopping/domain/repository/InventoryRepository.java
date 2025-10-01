@@ -43,12 +43,12 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     @Query("SELECT i FROM Inventory i WHERE i.product.sku = :sku")
     Optional<Inventory> findByProductSkuWithLock(@Param("sku") String sku);
 
-    // SKU'ya göre stok miktarını artır
+    // SKU'ya göre stok miktarını artır/azalt (delta değeri)
     @Modifying
-    @Query("UPDATE Inventory i SET i.quantity = i.quantity + :quantity, " +
+    @Query("UPDATE Inventory i SET i.quantity = i.quantity + :delta, " +
            "i.version = i.version + 1 " +
            "WHERE i.product.sku = :sku")
-    int increaseStockBySku(@Param("sku") String sku, @Param("quantity") Integer quantity);
+    int adjustStockBySku(@Param("sku") String sku, @Param("delta") Integer delta);
 
     // SKU'ya göre stok miktarını azalt - Rezervasyon için (optimistic locking)
     @Modifying

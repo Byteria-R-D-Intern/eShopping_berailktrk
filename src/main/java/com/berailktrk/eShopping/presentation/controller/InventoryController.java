@@ -103,22 +103,22 @@ public class InventoryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // Stok miktarını artır - SKU ile mevcut stok miktarını artır
-    @Operation(summary = "Stok miktarını artır", 
-               description = "SKU ile mevcut stok miktarını artırır. Admin yetkisi gereklidir.")
+    // Stok miktarını artır/azalt - SKU ile stok miktarını delta değeri kadar değiştir
+    @Operation(summary = "Stok miktarını artır/azalt", 
+               description = "SKU ile ürünün stok miktarını artırır veya azaltır. Pozitif değer: artırma (ör: +10 depoya ürün geldi), Negatif değer: azaltma (ör: -2 bozuk ürün). Admin yetkisi gereklidir.")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Stok başarıyla artırıldı"),
-        @ApiResponse(responseCode = "400", description = "Validation hatası veya SKU bulunamadı"),
+        @ApiResponse(responseCode = "200", description = "Stok başarıyla güncellendi"),
+        @ApiResponse(responseCode = "400", description = "Validation hatası, yetersiz stok veya SKU bulunamadı"),
         @ApiResponse(responseCode = "403", description = "Admin yetkisi gerekli")
     })
     @PutMapping("/{sku}/stock")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<InventoryResponse> increaseStock(
+    public ResponseEntity<InventoryResponse> adjustStock(
             @Parameter(description = "Ürün SKU") @PathVariable String sku,
-            @Parameter(description = "Artırılacak miktar") @RequestParam Integer quantity) {
-        log.info("Increasing stock for SKU: {} by quantity: {}", sku, quantity);
+            @Parameter(description = "Artırılacak/azaltılacak miktar (pozitif: +10, negatif: -2)") @RequestParam Integer delta) {
+        log.info("Adjusting stock for SKU: {} by delta: {}", sku, delta);
         
-        Inventory inventory = inventoryService.increaseStock(sku, quantity);
+        Inventory inventory = inventoryService.adjustStock(sku, delta);
         InventoryResponse response = mapToResponse(inventory);
         
         return ResponseEntity.ok(response);

@@ -86,24 +86,32 @@ public class InventoryService {
     }
 
     /**
-     * Stok miktarını artır
+     * Stok miktarını artır veya azalt
      * 
      * @param sku ürün SKU
-     * @param quantity artırılacak miktar
+     * @param delta artırılacak/azaltılacak miktar (pozitif: artır, negatif: azalt)
      * @return güncellenen stok kaydı
      */
-    public Inventory increaseStock(String sku, Integer quantity) {
-        log.info("Increasing stock for SKU: {} by quantity: {}", sku, quantity);
+    public Inventory adjustStock(String sku, Integer delta) {
+        log.info("Adjusting stock for SKU: {} by delta: {}", sku, delta);
         
-        if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity must be positive");
+        if (delta == 0) {
+            throw new IllegalArgumentException("Delta cannot be zero");
         }
 
-        Inventory inventory = getInventoryBySku(sku);
+        // SKU'nun var olup olmadığını ve mevcut stok kontrolü
+        Inventory currentInventory = getInventoryBySku(sku);
         
-        int updatedRows = inventoryRepository.increaseStockBySku(sku, quantity);
+        // Negatif delta ise, stokta yeterli miktar olup olmadığını kontrol et
+        if (delta < 0 && currentInventory.getQuantity() + delta < 0) {
+            throw new IllegalArgumentException(
+                String.format("Insufficient stock. Current: %d, Requested delta: %d", 
+                    currentInventory.getQuantity(), delta));
+        }
+        
+        int updatedRows = inventoryRepository.adjustStockBySku(sku, delta);
         if (updatedRows == 0) {
-            throw new IllegalStateException("Failed to increase stock for SKU: " + sku);
+            throw new IllegalStateException("Failed to adjust stock for SKU: " + sku);
         }
 
         // Refresh entity to get updated data
