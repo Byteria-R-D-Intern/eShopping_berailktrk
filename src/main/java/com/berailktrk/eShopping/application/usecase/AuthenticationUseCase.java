@@ -16,10 +16,7 @@ import com.berailktrk.eShopping.presentation.dto.response.AuthResponse;
 
 import lombok.RequiredArgsConstructor;
 
-/**
- * Authentication use case
- * Kullanıcı kayıt ve giriş işlemlerini yönetir
- */
+//Authentication use case - kullanıcı kayıt ve giriş işlemleri
 @Service
 @RequiredArgsConstructor
 public class AuthenticationUseCase {
@@ -31,28 +28,23 @@ public class AuthenticationUseCase {
     private final UserDomainService userDomainService;
     private final AuditLogService auditLogService;
 
-    /**
-     * Yeni kullanıcı kaydı
-     * 
-     * @param request kayıt isteği
-     * @return authentication yanıtı
-     */
+    //Yeni kullanıcı kaydı
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        // 1. Şifre eşleşme kontrolü
+        //Şifre eşleşme kontrolü
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new IllegalArgumentException("Şifreler eşleşmiyor");
         }
 
-        // 2. Email kontrolü
+        //Email kontrolü
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Bu email adresi zaten kullanılıyor");
         }
 
-        // 3. Şifreyi hashle
+        //Şifreyi hashle
         String hashedPassword = passwordEncoder.encode(request.getPassword());
 
-        // 4. Kullanıcı oluştur
+        //Kullanıcı oluştur
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(hashedPassword)
@@ -62,10 +54,10 @@ public class AuthenticationUseCase {
 
         User savedUser = userRepository.save(user);
 
-        // 5. JWT token oluştur
+        //JWT token oluştur
         String token = jwtProvider.generateToken(savedUser);
 
-        // 6. Audit log kaydet (kullanıcı kendini kaydetti)
+        //Audit log kaydet (kullanıcı kendini kaydetti)
         AuditLog registerLog = auditLogService.logUserAction(
             savedUser, // Actor: Kaydolan kullanıcının kendisi
             AuditLogService.ACTION_USER_CREATED,
@@ -74,43 +66,38 @@ public class AuthenticationUseCase {
         );
         auditLogRepository.save(registerLog);
 
-        // 7. Yanıt oluştur
+        //Yanıt oluştur
         return AuthResponse.builder()
                 .token(token)
                 .build();
     }
 
-    /**
-     * Kullanıcı girişi
-     * 
-     * @param request giriş isteği
-     * @return authentication yanıtı
-     */
+    //Kullanıcı girişi
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        // 1. Kullanıcıyı bul
+        //Kullanıcıyı bul
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("Email veya şifre hatalı"));
 
-        // 2. Hesap kilidi kontrolü
+        //Hesap kilidi kontrolü
         if (userDomainService.isLocked(user)) {
             throw new IllegalStateException(
                 String.format("Hesabınız %s tarihine kadar kilitli", user.getLockedUntil())
             );
         }
 
-        // 3. Hesap aktif mi kontrolü
+        //Hesap aktif mi kontrolü
         if (!user.getIsActive()) {
             throw new IllegalStateException("Hesabınız aktif değil");
         }
 
-        // 4. Şifre kontrolü
+        //Şifre kontrolü
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            // Başarısız giriş kaydı
+            //Başarısız giriş kaydı
             userDomainService.handleFailedLogin(user);
             userRepository.save(user);
 
-            // Başarısız giriş audit log kaydet
+            //Başarısız giriş audit log kaydet
             AuditLog failLog = auditLogService.logUserAction(
                 null,
                 "USER_LOGIN_FAILED",
@@ -123,14 +110,14 @@ public class AuthenticationUseCase {
             throw new IllegalArgumentException("Email veya şifre hatalı");
         }
 
-        // 5. Başarılı giriş - failed count sıfırla ve last login güncelle
+        //Başarılı giriş - failed count sıfırla ve last login güncelle
         userDomainService.recordSuccessfulLogin(user);
         userRepository.save(user);
 
-        // 6. JWT token oluştur
+        //JWT token oluştur
         String token = jwtProvider.generateToken(user);
 
-        // 7. Başarılı giriş audit log kaydet
+        //Başarılı giriş audit log kaydet
         AuditLog loginLog = auditLogService.logUserAction(
             user,
             AuditLogService.ACTION_USER_LOGIN,
@@ -139,18 +126,13 @@ public class AuthenticationUseCase {
         );
         auditLogRepository.save(loginLog);
 
-        // 8. Yanıt oluştur
+        //Yanıt oluştur
         return AuthResponse.builder()
                 .token(token)
                 .build();
     }
 
-    /**
-     * Token doğrulama
-     * 
-     * @param token JWT token
-     * @return geçerliyse kullanıcı
-     */
+    //Token doğrulama
     public User validateToken(String token) {
         if (!jwtProvider.validateToken(token)) {
             throw new IllegalArgumentException("Geçersiz veya süresi dolmuş token");

@@ -1,117 +1,104 @@
 package com.berailktrk.eShopping.application.usecase;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.berailktrk.eShopping.domain.model.AuditLog;
 import com.berailktrk.eShopping.domain.model.Order;
 import com.berailktrk.eShopping.domain.model.OrderStatus;
 import com.berailktrk.eShopping.domain.model.PaymentStatus;
+import com.berailktrk.eShopping.domain.repository.AuditLogRepository;
 
-/**
- * Order entity'si için uygulama servis katmanı
- * Sipariş yönetimi ve karmaşık business logic'i yönetir
- */
+//Order service - sipariş yönetimi ve business logic
 @Service
 public class OrderService {
 
-    /**
-     * Siparişin ödeme bekliyor durumunda olup olmadığını kontrol eder
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return ödeme bekliyorsa true
-     */
+    private final AuditLogService auditLogService;
+    private final AuditLogRepository auditLogRepository;
+
+    public OrderService(AuditLogService auditLogService, AuditLogRepository auditLogRepository) {
+        this.auditLogService = auditLogService;
+        this.auditLogRepository = auditLogRepository;
+    }
+
+    //Siparişin ödeme bekliyor durumunda olup olmadığını kontrol et
     public boolean isPending(Order order) {
         return order.getStatus() == OrderStatus.PENDING;
     }
 
-    /**
-     * Siparişin ödenmiş olup olmadığını kontrol eder
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return ödenmişse true
-     */
+    //Siparişin ödenmiş olup olmadığını kontrol et
     public boolean isPaid(Order order) {
         return order.getStatus() == OrderStatus.PAID;
     }
 
-    /**
-     * Siparişin iptal edilmiş olup olmadığını kontrol eder
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return iptal edildiyse true
-     */
+    //Siparişin iptal edilmiş olup olmadığını kontrol et
     public boolean isCancelled(Order order) {
         return order.getStatus() == OrderStatus.CANCELLED;
     }
 
-    /**
-     * Siparişin kargoya verilmiş olup olmadığını kontrol eder
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return kargoya verildiyse true
-     */
+    //Siparişin kargoya verilmiş olup olmadığını kontrol et
     public boolean isShipped(Order order) {
         return order.getStatus() == OrderStatus.SHIPPED;
     }
 
-    /**
-     * Siparişin başarısız olup olmadığını kontrol eder
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return başarısızsa true
-     */
+    //Siparişin başarısız olup olmadığını kontrol et
     public boolean isFailed(Order order) {
         return order.getStatus() == OrderStatus.FAILED;
     }
 
-    /**
-     * Siparişin iptal edilebilir durumda olup olmadığını kontrol eder
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return iptal edilebilirse true
-     */
+    //Siparişin iptal edilebilir durumda olup olmadığını kontrol et
     public boolean canBeCancelled(Order order) {
-        // Sadece PENDING veya PAID durumundaki siparişler iptal edilebilir
+        //Sadece PENDING veya PAID durumundaki siparişler iptal edilebilir
         return order.getStatus() == OrderStatus.PENDING || 
                order.getStatus() == OrderStatus.PAID;
     }
 
-    /**
-     * Siparişin kargoya verilebilir durumda olup olmadığını kontrol eder
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return kargoya verilebilirse true
-     */
+    //Siparişin kargoya verilebilir durumda olup olmadığını kontrol et
     public boolean canBeShipped(Order order) {
-        // Sadece PAID durumundaki siparişler kargoya verilebilir
+        //Sadece PAID durumundaki siparişler kargoya verilebilir
         return order.getStatus() == OrderStatus.PAID && 
                order.getPaymentStatus() == PaymentStatus.CAPTURED;
     }
 
-    /**
-     * Ödemeyi tamamlar ve sipariş durumunu günceller
-     * 
-     * @param order güncellenecek sipariş
-     * @throws IllegalStateException sipariş ödeme yapılabilir durumda değilse
-     */
+    //Ödemeyi tamamla ve sipariş durumunu güncelle
     public void markAsPaid(Order order) {
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new IllegalStateException("Sadece PENDING durumundaki siparişler ödenebilir");
         }
 
+        //BEFORE durumu
+        Map<String, Object> beforeStatus = new HashMap<>();
+        beforeStatus.put("status", order.getStatus().toString());
+        beforeStatus.put("paymentStatus", order.getPaymentStatus().toString());
+        beforeStatus.put("paidAt", order.getPaidAt());
+
         order.setStatus(OrderStatus.PAID);
         order.setPaymentStatus(PaymentStatus.CAPTURED);
         order.setPaidAt(Instant.now());
+
+        // AFTER durumu
+        Map<String, Object> afterStatus = new HashMap<>();
+        afterStatus.put("status", order.getStatus().toString());
+        afterStatus.put("paymentStatus", order.getPaymentStatus().toString());
+        afterStatus.put("paidAt", order.getPaidAt().toString());
+
+        // Detaylı audit log
+        Map<String, Object> details = auditLogService.createBeforeAfterDetails(beforeStatus, afterStatus);
+        
+        AuditLog orderLog = auditLogService.logOrderActionWithDetails(
+            order.getUser(),
+            AuditLogService.ACTION_ORDER_PAID,
+            order.getId(),
+            String.format("Sipariş ödendi: %s", order.getId()),
+            details
+        );
+        auditLogRepository.save(orderLog);
     }
 
-    /**
-     * Ödeme yetkisini (authorization) kaydeder
-     * 
-     * @param order güncellenecek sipariş
-     * @throws IllegalStateException sipariş ödeme yapılabilir durumda değilse
-     */
+    //Ödeme yetkisini (authorization) kaydet
     public void authorizePayment(Order order) {
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new IllegalStateException("Sadece PENDING durumundaki siparişler için ödeme yetkisi verilebilir");
@@ -120,12 +107,7 @@ public class OrderService {
         order.setPaymentStatus(PaymentStatus.AUTHORIZED);
     }
 
-    /**
-     * Yetkili ödemeyi tahsil eder (capture)
-     * 
-     * @param order güncellenecek sipariş
-     * @throws IllegalStateException ödeme yetkisi verilmemişse
-     */
+    //Yetkili ödemeyi tahsil et (capture)
     public void capturePayment(Order order) {
         if (order.getPaymentStatus() != PaymentStatus.AUTHORIZED) {
             throw new IllegalStateException("Sadece AUTHORIZED durumundaki ödemeler tahsil edilebilir");
@@ -136,27 +118,41 @@ public class OrderService {
         order.setPaidAt(Instant.now());
     }
 
-    /**
-     * Siparişi iptal eder
-     * 
-     * @param order iptal edilecek sipariş
-     * @throws IllegalStateException sipariş iptal edilebilir durumda değilse
-     */
+    //Siparişi iptal et
     public void cancelOrder(Order order) {
         if (!canBeCancelled(order)) {
             throw new IllegalStateException("Sipariş iptal edilebilir durumda değil");
         }
 
+        //BEFORE durumu
+        Map<String, Object> beforeStatus = new HashMap<>();
+        beforeStatus.put("status", order.getStatus().toString());
+        beforeStatus.put("paymentStatus", order.getPaymentStatus().toString());
+        beforeStatus.put("cancelledAt", order.getCancelledAt());
+
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
+
+        // AFTER durumu
+        Map<String, Object> afterStatus = new HashMap<>();
+        afterStatus.put("status", order.getStatus().toString());
+        afterStatus.put("paymentStatus", order.getPaymentStatus().toString());
+        afterStatus.put("cancelledAt", order.getCancelledAt().toString());
+
+        // Detaylı audit log
+        Map<String, Object> details = auditLogService.createBeforeAfterDetails(beforeStatus, afterStatus);
+        
+        AuditLog cancelLog = auditLogService.logOrderActionWithDetails(
+            order.getUser(),
+            AuditLogService.ACTION_ORDER_CANCELLED,
+            order.getId(),
+            String.format("Sipariş iptal edildi: %s", order.getId()),
+            details
+        );
+        auditLogRepository.save(cancelLog);
     }
 
-    /**
-     * Siparişi kargoya verildi olarak işaretler
-     * 
-     * @param order güncellenecek sipariş
-     * @throws IllegalStateException sipariş kargoya verilebilir durumda değilse
-     */
+    //Siparişi kargoya verildi olarak işaretle
     public void markAsShipped(Order order) {
         if (!canBeShipped(order)) {
             throw new IllegalStateException(
@@ -165,15 +161,32 @@ public class OrderService {
             );
         }
 
+        //BEFORE durumu
+        Map<String, Object> beforeStatus = new HashMap<>();
+        beforeStatus.put("status", order.getStatus().toString());
+        beforeStatus.put("paymentStatus", order.getPaymentStatus().toString());
+
         order.setStatus(OrderStatus.SHIPPED);
+
+        // AFTER durumu
+        Map<String, Object> afterStatus = new HashMap<>();
+        afterStatus.put("status", order.getStatus().toString());
+        afterStatus.put("paymentStatus", order.getPaymentStatus().toString());
+
+        // Detaylı audit log
+        Map<String, Object> details = auditLogService.createBeforeAfterDetails(beforeStatus, afterStatus);
+        
+        AuditLog shipLog = auditLogService.logOrderActionWithDetails(
+            order.getUser(),
+            AuditLogService.ACTION_ORDER_SHIPPED,
+            order.getId(),
+            String.format("Sipariş kargoya verildi: %s", order.getId()),
+            details
+        );
+        auditLogRepository.save(shipLog);
     }
 
-    /**
-     * Ödeme başarısız olarak işaretler
-     * 
-     * @param order güncellenecek sipariş
-     * @throws IllegalStateException sipariş PENDING durumunda değilse
-     */
+    //Ödeme başarısız olarak işaretle
     public void markAsFailed(Order order) {
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new IllegalStateException("Sadece PENDING durumundaki siparişler başarısız olarak işaretlenebilir");
@@ -182,12 +195,7 @@ public class OrderService {
         order.setStatus(OrderStatus.FAILED);
     }
 
-    /**
-     * Ödemeyi iade eder
-     * 
-     * @param order güncellenecek sipariş
-     * @throws IllegalStateException ödeme iade edilebilir durumda değilse
-     */
+    //Ödemeyi iade et
     public void refundPayment(Order order) {
         if (order.getPaymentStatus() != PaymentStatus.CAPTURED) {
             throw new IllegalStateException("Sadece CAPTURED durumundaki ödemeler iade edilebilir");
@@ -200,13 +208,7 @@ public class OrderService {
         order.setPaymentStatus(PaymentStatus.REFUNDED);
     }
 
-    /**
-     * Kargo adresi günceller
-     * 
-     * @param order güncellenecek sipariş
-     * @param shippingAddress yeni kargo adresi
-     * @throws IllegalStateException sipariş kargoya verildiyse
-     */
+    //Kargo adresi güncelle
     public void updateShippingAddress(Order order, Map<String, Object> shippingAddress) {
         if (order.getStatus() == OrderStatus.SHIPPED) {
             throw new IllegalStateException("Kargoya verilmiş siparişin adresi değiştirilemez");
@@ -215,33 +217,17 @@ public class OrderService {
         order.setShippingAddress(shippingAddress);
     }
 
-    /**
-     * Fatura adresi günceller
-     * 
-     * @param order güncellenecek sipariş
-     * @param billingAddress yeni fatura adresi
-     */
+    //Fatura adresi güncelle
     public void updateBillingAddress(Order order, Map<String, Object> billingAddress) {
         order.setBillingAddress(billingAddress);
     }
 
-    /**
-     * Metadata günceller
-     * 
-     * @param order güncellenecek sipariş
-     * @param metadata yeni metadata
-     */
+    //Metadata güncelle
     public void updateMetadata(Order order, Map<String, Object> metadata) {
         order.setMetadata(metadata);
     }
 
-    /**
-     * Metadata'ya yeni bir alan ekler veya günceller
-     * 
-     * @param order güncellenecek sipariş
-     * @param key metadata anahtarı
-     * @param value metadata değeri
-     */
+    //Metadata'ya yeni bir alan ekle veya güncelle
     public void addOrUpdateMetadataField(Order order, String key, Object value) {
         Map<String, Object> metadata = order.getMetadata();
         if (metadata == null) {
@@ -251,13 +237,7 @@ public class OrderService {
         metadata.put(key, value);
     }
 
-    /**
-     * Kargo takip numarası ekler
-     * 
-     * @param order güncellenecek sipariş
-     * @param trackingNumber kargo takip numarası
-     * @throws IllegalStateException sipariş kargoya verilmediyse
-     */
+    //Kargo takip numarası ekle
     public void addTrackingNumber(Order order, String trackingNumber) {
         if (order.getStatus() != OrderStatus.SHIPPED) {
             throw new IllegalStateException("Kargo takip numarası sadece kargoya verilmiş siparişlere eklenebilir");
@@ -266,12 +246,7 @@ public class OrderService {
         addOrUpdateMetadataField(order, "tracking_number", trackingNumber);
     }
 
-    /**
-     * Sipariş doğrulama
-     * 
-     * @param order doğrulanacak sipariş
-     * @throws IllegalStateException sipariş geçersizse
-     */
+    //Sipariş doğrulama
     public void validateOrder(Order order) {
         if (order.getTotalAmount() == null || order.getTotalAmount().compareTo(java.math.BigDecimal.ZERO) <= 0) {
             throw new IllegalStateException("Sipariş tutarı geçerli olmalıdır");
@@ -289,12 +264,7 @@ public class OrderService {
         validateStatusConsistency(order);
     }
 
-    /**
-     * Sipariş durumu ve ödeme durumu tutarlılığını kontrol eder
-     * 
-     * @param order kontrol edilecek sipariş
-     * @throws IllegalStateException tutarlılık yoksa
-     */
+    //Sipariş durumu ve ödeme durumu tutarlılığını kontrol et
     public void validateStatusConsistency(Order order) {
         // PAID durumundaki siparişlerin ödeme durumu CAPTURED olmalı
         if (order.getStatus() == OrderStatus.PAID && 
@@ -323,12 +293,7 @@ public class OrderService {
         }
     }
 
-    /**
-     * Siparişin ne kadar süredir bekletildiğini hesaplar (saat cinsinden)
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return sipariş oluşturulduğundan beri geçen saat
-     */
+    //Siparişin ne kadar süredir bekletildiğini hesapla (saat cinsinden)
     public long getHoursSinceCreated(Order order) {
         java.time.Duration duration = java.time.Duration.between(
             order.getCreatedAt(), 
@@ -337,12 +302,7 @@ public class OrderService {
         return duration.toHours();
     }
 
-    /**
-     * Ödeme yapıldıktan sonra geçen süreyi hesaplar (saat cinsinden)
-     * 
-     * @param order kontrol edilecek sipariş
-     * @return ödeme yapıldıktan sonra geçen saat (ödeme yapılmadıysa null)
-     */
+    //Ödeme yapıldıktan sonra geçen süreyi hesapla (saat cinsinden)
     public Long getHoursSincePaid(Order order) {
         if (order.getPaidAt() == null) {
             return null;

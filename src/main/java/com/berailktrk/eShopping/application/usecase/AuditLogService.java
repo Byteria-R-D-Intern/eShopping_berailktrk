@@ -11,17 +11,12 @@ import org.springframework.stereotype.Service;
 import com.berailktrk.eShopping.domain.model.AuditLog;
 import com.berailktrk.eShopping.domain.model.User;
 
-/**
- * AuditLog entity'si için uygulama servis katmanı
- * 
- * ÖNEMLİ: Bu service SADECE log oluşturma ve okuma işlemleri içerir
- * - UPDATE ve DELETE metodları YOK (append-only)
- * - Tüm işlemler immutable
- */
+//Audit log service - log oluşturma ve filtreleme işlemleri
+//Append-only: UPDATE/DELETE yok, immutable işlemler
 @Service
 public class AuditLogService {
 
-    // Action Type Sabitleri
+    //Action Type sabitleri
     public static final String ACTION_USER_CREATED = "USER_CREATED";
     public static final String ACTION_USER_UPDATED = "USER_UPDATED";
     public static final String ACTION_USER_DELETED = "USER_DELETED";
@@ -50,7 +45,7 @@ public class AuditLogService {
     public static final String ACTION_PAYMENT_CAPTURED = "PAYMENT_CAPTURED";
     public static final String ACTION_PAYMENT_FAILED = "PAYMENT_FAILED";
     
-    // Resource Type Sabitleri
+    //Resource Type sabitleri
     public static final String RESOURCE_USER = "USER";
     public static final String RESOURCE_PRODUCT = "PRODUCT";
     public static final String RESOURCE_INVENTORY = "INVENTORY";
@@ -58,23 +53,8 @@ public class AuditLogService {
     public static final String RESOURCE_CART = "CART";
     public static final String RESOURCE_PAYMENT = "PAYMENT";
 
-    /**
-     * Temel audit log oluşturur
-     * 
-     * @param actorUser işlem yapan kullanıcı (sistem işlemlerinde null)
-     * @param actionType işlem tipi (CREATE_ORDER, UPDATE_PRODUCT, vb.)
-     * @param resourceType kaynak tipi (ORDER, PRODUCT, vb.)
-     * @param resourceId etkilenen kaydın ID'si
-     * @param summary kısa açıklama
-     * @return oluşturulan audit log
-     */
-    public AuditLog createLog(
-        User actorUser,
-        String actionType,
-        String resourceType,
-        UUID resourceId,
-        String summary
-    ) {
+    //Temel audit log oluştur
+    public AuditLog createLog(User actorUser, String actionType, String resourceType,UUID resourceId, String summary) {
         return AuditLog.builder()
             .actorUser(actorUser)
             .actionType(actionType)
@@ -84,17 +64,7 @@ public class AuditLogService {
             .build();
     }
 
-    /**
-     * Detaylı audit log oluşturur (before/after değerleri ile)
-     * 
-     * @param actorUser işlem yapan kullanıcı
-     * @param actionType işlem tipi
-     * @param resourceType kaynak tipi
-     * @param resourceId etkilenen kaydın ID'si
-     * @param summary kısa açıklama
-     * @param details ek detaylar (before, after, metadata vb.)
-     * @return oluşturulan audit log
-     */
+    //Detaylı audit log oluştur (before/after değerleri ile)
     public AuditLog createLogWithDetails(
         User actorUser,
         String actionType,
@@ -113,55 +83,22 @@ public class AuditLogService {
             .build();
     }
 
-    /**
-     * Kullanıcı işlemleri için log oluşturur
-     * 
-     * @param actorUser işlem yapan kullanıcı
-     * @param actionType işlem tipi
-     * @param targetUserId hedef kullanıcı ID
-     * @param summary açıklama
-     * @return audit log
-     */
+    //Kullanıcı işlemleri için log oluştur
     public AuditLog logUserAction(User actorUser, String actionType, UUID targetUserId, String summary) {
         return createLog(actorUser, actionType, RESOURCE_USER, targetUserId, summary);
     }
 
-    /**
-     * Ürün işlemleri için log oluşturur
-     * 
-     * @param actorUser işlem yapan kullanıcı
-     * @param actionType işlem tipi
-     * @param productId ürün ID
-     * @param summary açıklama
-     * @return audit log
-     */
+    //Ürün işlemleri için log oluştur
     public AuditLog logProductAction(User actorUser, String actionType, UUID productId, String summary) {
         return createLog(actorUser, actionType, RESOURCE_PRODUCT, productId, summary);
     }
 
-    /**
-     * Sipariş işlemleri için log oluşturur
-     * 
-     * @param actorUser işlem yapan kullanıcı
-     * @param actionType işlem tipi
-     * @param orderId sipariş ID
-     * @param summary açıklama
-     * @return audit log
-     */
+    //Sipariş işlemleri için log oluştur
     public AuditLog logOrderAction(User actorUser, String actionType, UUID orderId, String summary) {
         return createLog(actorUser, actionType, RESOURCE_ORDER, orderId, summary);
     }
 
-    /**
-     * Sipariş işlemleri için detaylı log oluşturur
-     * 
-     * @param actorUser işlem yapan kullanıcı
-     * @param actionType işlem tipi
-     * @param orderId sipariş ID
-     * @param summary açıklama
-     * @param orderDetails sipariş detayları
-     * @return audit log
-     */
+    //Sipariş işlemleri için detaylı log oluştur
     public AuditLog logOrderActionWithDetails(
         User actorUser, 
         String actionType, 
@@ -172,16 +109,7 @@ public class AuditLogService {
         return createLogWithDetails(actorUser, actionType, RESOURCE_ORDER, orderId, summary, orderDetails);
     }
 
-    /**
-     * Stok işlemleri için log oluşturur
-     * 
-     * @param actorUser işlem yapan kullanıcı (sistem işlemlerinde null)
-     * @param actionType işlem tipi
-     * @param productId ürün ID
-     * @param summary açıklama
-     * @param inventoryDetails stok detayları (before, after, qty)
-     * @return audit log
-     */
+    //Stok işlemleri için log oluştur
     public AuditLog logInventoryAction(
         User actorUser, 
         String actionType, 
@@ -192,16 +120,7 @@ public class AuditLogService {
         return createLogWithDetails(actorUser, actionType, RESOURCE_INVENTORY, productId, summary, inventoryDetails);
     }
 
-    /**
-     * Ödeme işlemleri için log oluşturur
-     * 
-     * @param actorUser işlem yapan kullanıcı
-     * @param actionType işlem tipi
-     * @param orderId ilgili sipariş ID
-     * @param summary açıklama
-     * @param paymentDetails ödeme detayları (sanitized)
-     * @return audit log
-     */
+    //Ödeme işlemleri için log oluştur
     public AuditLog logPaymentAction(
         User actorUser, 
         String actionType, 
@@ -212,26 +131,12 @@ public class AuditLogService {
         return createLogWithDetails(actorUser, actionType, RESOURCE_PAYMENT, orderId, summary, paymentDetails);
     }
 
-    /**
-     * Sistem işlemleri için log oluşturur (kullanıcı yok)
-     * 
-     * @param actionType işlem tipi
-     * @param resourceType kaynak tipi
-     * @param resourceId kaynak ID
-     * @param summary açıklama
-     * @return audit log
-     */
+    //Sistem işlemleri için log oluştur (kullanıcı yok)
     public AuditLog logSystemAction(String actionType, String resourceType, UUID resourceId, String summary) {
         return createLog(null, actionType, resourceType, resourceId, summary);
     }
 
-    /**
-     * Before/After değişiklikleri için detay map'i oluşturur
-     * 
-     * @param before önceki değerler
-     * @param after sonraki değerler
-     * @return detay map
-     */
+    //Before/After değişiklikleri için detay map'i oluştur
     public Map<String, Object> createBeforeAfterDetails(Map<String, Object> before, Map<String, Object> after) {
         Map<String, Object> details = new HashMap<>();
         details.put("before", before);
@@ -240,12 +145,7 @@ public class AuditLogService {
         return details;
     }
 
-    /**
-     * Detayları sanitize eder (hassas bilgileri temizler)
-     * 
-     * @param details ham detaylar
-     * @return sanitize edilmiş detaylar
-     */
+    //Detayları sanitize et (hassas bilgileri temizle)
     private Map<String, Object> sanitizeDetails(Map<String, Object> details) {
         if (details == null) {
             return null;
@@ -253,7 +153,7 @@ public class AuditLogService {
 
         Map<String, Object> sanitized = new HashMap<>(details);
 
-        // Hassas alanları temizle
+        //Hassas alanları temizle
         sanitized.remove("password");
         sanitized.remove("password_hash");
         sanitized.remove("credit_card");
@@ -263,7 +163,7 @@ public class AuditLogService {
         sanitized.remove("secret");
         sanitized.remove("api_key");
 
-        // Nested map'lerde de temizle
+        //Nested map'lerde de temizle
         sanitized.forEach((key, value) -> {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
@@ -275,12 +175,7 @@ public class AuditLogService {
         return sanitized;
     }
 
-    /**
-     * Log doğrulama
-     * 
-     * @param auditLog doğrulanacak log
-     * @throws IllegalStateException log geçersizse
-     */
+    //Log doğrulama
     public void validateLog(AuditLog auditLog) {
         if (auditLog.getActionType() == null || auditLog.getActionType().trim().isEmpty()) {
             throw new IllegalStateException("Action type boş olamaz");
@@ -291,15 +186,7 @@ public class AuditLogService {
         }
     }
 
-    /**
-     * Belirli bir kaynağın tüm audit geçmişini döndürür
-     * Not: Bu method repository'den veri çeker, burada sadece filtreleme logic'i var
-     * 
-     * @param auditLogs tüm log'lar
-     * @param resourceType kaynak tipi
-     * @param resourceId kaynak ID
-     * @return filtrelenmiş log'lar
-     */
+    //Belirli bir kaynağın audit geçmişini filtrele
     public List<AuditLog> filterByResource(List<AuditLog> auditLogs, String resourceType, UUID resourceId) {
         return auditLogs.stream()
             .filter(log -> resourceType.equals(log.getResourceType()) && 
@@ -307,13 +194,7 @@ public class AuditLogService {
             .toList();
     }
 
-    /**
-     * Belirli bir kullanıcının yaptığı işlemleri filtreler
-     * 
-     * @param auditLogs tüm log'lar
-     * @param userId kullanıcı ID
-     * @return filtrelenmiş log'lar
-     */
+    //Belirli bir kullanıcının işlemlerini filtrele
     public List<AuditLog> filterByUser(List<AuditLog> auditLogs, UUID userId) {
         return auditLogs.stream()
             .filter(log -> log.getActorUser() != null && 
@@ -321,27 +202,14 @@ public class AuditLogService {
             .toList();
     }
 
-    /**
-     * Belirli bir işlem tipine göre filtreler
-     * 
-     * @param auditLogs tüm log'lar
-     * @param actionType işlem tipi
-     * @return filtrelenmiş log'lar
-     */
+    //Belirli bir işlem tipine göre filtrele
     public List<AuditLog> filterByActionType(List<AuditLog> auditLogs, String actionType) {
         return auditLogs.stream()
             .filter(log -> actionType.equals(log.getActionType()))
             .toList();
     }
 
-    /**
-     * Belirli bir tarih aralığındaki log'ları filtreler
-     * 
-     * @param auditLogs tüm log'lar
-     * @param startTime başlangıç zamanı
-     * @param endTime bitiş zamanı
-     * @return filtrelenmiş log'lar
-     */
+    //Belirli bir tarih aralığındaki log'ları filtrele
     public List<AuditLog> filterByDateRange(List<AuditLog> auditLogs, Instant startTime, Instant endTime) {
         return auditLogs.stream()
             .filter(log -> !log.getCreatedAt().isBefore(startTime) && 
@@ -349,36 +217,21 @@ public class AuditLogService {
             .toList();
     }
 
-    /**
-     * Sistem işlemlerini (actor_user_id = NULL) filtreler
-     * 
-     * @param auditLogs tüm log'lar
-     * @return sistem işlemleri
-     */
+    //Sistem işlemlerini filtrele (actor_user_id = NULL)
     public List<AuditLog> filterSystemActions(List<AuditLog> auditLogs) {
         return auditLogs.stream()
             .filter(log -> log.getActorUser() == null)
             .toList();
     }
 
-    /**
-     * Kullanıcı işlemlerini (actor_user_id != NULL) filtreler
-     * 
-     * @param auditLogs tüm log'lar
-     * @return kullanıcı işlemleri
-     */
+    //Kullanıcı işlemlerini filtrele (actor_user_id != NULL)
     public List<AuditLog> filterUserActions(List<AuditLog> auditLogs) {
         return auditLogs.stream()
             .filter(log -> log.getActorUser() != null)
             .toList();
     }
 
-    /**
-     * Log özeti oluşturur
-     * 
-     * @param auditLogs log'lar
-     * @return özet map (action_type -> count)
-     */
+    //Log özeti oluştur (action_type -> count)
     public Map<String, Long> createActionTypeSummary(List<AuditLog> auditLogs) {
         return auditLogs.stream()
             .collect(java.util.stream.Collectors.groupingBy(
@@ -387,12 +240,7 @@ public class AuditLogService {
             ));
     }
 
-    /**
-     * Kullanıcı bazında aktivite özeti
-     * 
-     * @param auditLogs log'lar
-     * @return user_id -> action_count
-     */
+    //Kullanıcı bazında aktivite özeti (user_id -> action_count)
     public Map<UUID, Long> createUserActivitySummary(List<AuditLog> auditLogs) {
         return auditLogs.stream()
             .filter(log -> log.getActorUser() != null)

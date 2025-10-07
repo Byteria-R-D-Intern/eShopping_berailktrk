@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.berailktrk.eShopping.application.usecase.InventoryService;
 import com.berailktrk.eShopping.domain.model.Inventory;
+import com.berailktrk.eShopping.domain.model.User;
 import com.berailktrk.eShopping.presentation.dto.response.InventoryResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -115,10 +117,12 @@ public class InventoryController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<InventoryResponse> adjustStock(
             @Parameter(description = "Ürün SKU") @PathVariable String sku,
-            @Parameter(description = "Artırılacak/azaltılacak miktar (pozitif: +10, negatif: -2)") @RequestParam Integer delta) {
+            @Parameter(description = "Artırılacak/azaltılacak miktar (pozitif: +10, negatif: -2)") @RequestParam Integer delta,
+            Authentication authentication) {
         log.info("Adjusting stock for SKU: {} by delta: {}", sku, delta);
         
-        Inventory inventory = inventoryService.adjustStock(sku, delta);
+        User currentUser = (User) authentication.getPrincipal();
+        Inventory inventory = inventoryService.adjustStock(sku, delta, currentUser);
         InventoryResponse response = mapToResponse(inventory);
         
         return ResponseEntity.ok(response);

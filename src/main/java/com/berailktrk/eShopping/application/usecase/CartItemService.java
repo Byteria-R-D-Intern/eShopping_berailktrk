@@ -12,67 +12,38 @@ import com.berailktrk.eShopping.domain.model.Cart;
 import com.berailktrk.eShopping.domain.model.CartItem;
 import com.berailktrk.eShopping.domain.model.Product;
 
-/**
- * CartItem entity'si için uygulama servis katmanı
- * Sepet ürün yönetimi ve karmaşık business logic'i yönetir
- */
+//CartItem service - sepet ürün yönetimi ve business logic
 @Service
 public class CartItemService {
 
     private static final int MAX_QUANTITY_PER_ITEM = 99; // Tek üründen maksimum miktar
 
-    /**
-     * Sepet itemının toplam fiyatını hesaplar
-     * 
-     * @param cartItem hesaplanacak sepet item'ı
-     * @return toplam fiyat (qty * unit_price_snapshot)
-     */
+    //Sepet itemının toplam fiyatını hesapla (qty * unit_price_snapshot)
     public BigDecimal calculateItemTotal(CartItem cartItem) {
         return cartItem.getUnitPriceSnapshot()
             .multiply(BigDecimal.valueOf(cartItem.getQty()));
     }
 
-    /**
-     * Birden fazla cart item'ın toplam fiyatını hesaplar
-     * 
-     * @param cartItems hesaplanacak sepet item'ları
-     * @return toplam fiyat
-     */
+    //Birden fazla cart item'ın toplam fiyatını hesapla
     public BigDecimal calculateCartTotal(List<CartItem> cartItems) {
         return cartItems.stream()
             .map(this::calculateItemTotal)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    /**
-     * Sepetteki toplam ürün sayısını hesaplar (miktar bazında)
-     * 
-     * @param cartItems sepetteki item'lar
-     * @return toplam ürün sayısı
-     */
+    //Sepetteki toplam ürün sayısını hesapla (miktar bazında)
     public int calculateTotalItemCount(List<CartItem> cartItems) {
         return cartItems.stream()
             .mapToInt(CartItem::getQty)
             .sum();
     }
 
-    /**
-     * Sepetteki farklı ürün çeşit sayısını hesaplar
-     * 
-     * @param cartItems sepetteki item'lar
-     * @return farklı ürün sayısı
-     */
+    //Sepetteki farklı ürün çeşit sayısını hesapla
     public int calculateUniqueProductCount(List<CartItem> cartItems) {
         return cartItems.size();
     }
 
-    /**
-     * Cart item miktarını artırır
-     * 
-     * @param cartItem güncellenecek item
-     * @param quantityToAdd eklenecek miktar
-     * @throws IllegalArgumentException miktar geçersizse veya limit aşılırsa
-     */
+    //Cart item miktarını artır
     public void increaseQuantity(CartItem cartItem, int quantityToAdd) {
         if (quantityToAdd <= 0) {
             throw new IllegalArgumentException("Eklenecek miktar pozitif olmalıdır");
@@ -89,13 +60,7 @@ public class CartItemService {
         cartItem.setQty(newQuantity);
     }
 
-    /**
-     * Cart item miktarını azaltır
-     * 
-     * @param cartItem güncellenecek item
-     * @param quantityToRemove çıkarılacak miktar
-     * @throws IllegalArgumentException miktar geçersizse veya sonuç sıfırdan küçükse
-     */
+    //Cart item miktarını azalt
     public void decreaseQuantity(CartItem cartItem, int quantityToRemove) {
         if (quantityToRemove <= 0) {
             throw new IllegalArgumentException("Çıkarılacak miktar pozitif olmalıdır");
@@ -112,13 +77,7 @@ public class CartItemService {
         cartItem.setQty(newQuantity);
     }
 
-    /**
-     * Cart item miktarını belirli bir değere günceller
-     * 
-     * @param cartItem güncellenecek item
-     * @param newQuantity yeni miktar
-     * @throws IllegalArgumentException miktar geçersizse
-     */
+    //Cart item miktarını belirli bir değere güncelle
     public void updateQuantity(CartItem cartItem, int newQuantity) {
         if (newQuantity <= 0) {
             throw new IllegalArgumentException("Miktar pozitif olmalıdır");
@@ -133,24 +92,12 @@ public class CartItemService {
         cartItem.setQty(newQuantity);
     }
 
-    /**
-     * Ürünün güncel fiyatı ile snapshot fiyatını karşılaştırır
-     * 
-     * @param cartItem kontrol edilecek item
-     * @param currentProductPrice ürünün güncel fiyatı
-     * @return fiyat değiştiyse true
-     */
+    //Ürünün güncel fiyatı ile snapshot fiyatını karşılaştır
     public boolean hasPriceChanged(CartItem cartItem, BigDecimal currentProductPrice) {
         return cartItem.getUnitPriceSnapshot().compareTo(currentProductPrice) != 0;
     }
 
-    /**
-     * Fiyat snapshot'ını günceller (örn: fiyat değiştiğinde kullanıcıya bildirilir ve kabul ederse)
-     * 
-     * @param cartItem güncellenecek item
-     * @param newPrice yeni snapshot fiyatı
-     * @throws IllegalArgumentException fiyat geçersizse
-     */
+    //Fiyat snapshot'ını güncelle (fiyat değiştiğinde kullanıcıya bildirilir ve kabul ederse)
     public void updatePriceSnapshot(CartItem cartItem, BigDecimal newPrice) {
         if (newPrice == null || newPrice.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Fiyat geçersiz");
@@ -159,23 +106,12 @@ public class CartItemService {
         cartItem.setUnitPriceSnapshot(newPrice);
     }
 
-    /**
-     * Cart item metadata'sını günceller
-     * 
-     * @param cartItem güncellenecek item
-     * @param metadata yeni metadata
-     */
+    //Cart item metadata'sını güncelle
     public void updateMetadata(CartItem cartItem, Map<String, Object> metadata) {
         cartItem.setMetadata(metadata);
     }
 
-    /**
-     * Cart item metadata'sına yeni bir alan ekler veya günceller
-     * 
-     * @param cartItem güncellenecek item
-     * @param key metadata anahtarı
-     * @param value metadata değeri
-     */
+    //Cart item metadata'sına yeni bir alan ekle veya güncelle
     public void addOrUpdateMetadataField(CartItem cartItem, String key, Object value) {
         Map<String, Object> metadata = cartItem.getMetadata();
         if (metadata == null) {
@@ -185,12 +121,7 @@ public class CartItemService {
         metadata.put(key, value);
     }
 
-    /**
-     * Cart item'ın geçerli olup olmadığını doğrular
-     * 
-     * @param cartItem doğrulanacak item
-     * @throws IllegalStateException item geçersizse
-     */
+    //Cart item'ın geçerli olup olmadığını doğrula
     public void validateCartItem(CartItem cartItem) {
         if (cartItem.getCart() == null) {
             throw new IllegalStateException("Cart item bir sepete ait olmalıdır");
@@ -210,24 +141,12 @@ public class CartItemService {
         }
     }
 
-    /**
-     * Fiyat farkını hesaplar (güncel fiyat - snapshot fiyat)
-     * 
-     * @param cartItem kontrol edilecek item
-     * @param currentProductPrice ürünün güncel fiyatı
-     * @return fiyat farkı (pozitif: zamlandı, negatif: indirimde)
-     */
+    //Fiyat farkını hesapla (güncel fiyat - snapshot fiyat)
     public BigDecimal calculatePriceDifference(CartItem cartItem, BigDecimal currentProductPrice) {
         return currentProductPrice.subtract(cartItem.getUnitPriceSnapshot());
     }
 
-    /**
-     * Fiyat değişikliği yüzdesini hesaplar
-     * 
-     * @param cartItem kontrol edilecek item
-     * @param currentProductPrice ürünün güncel fiyatı
-     * @return yüzde değişim (örn: 10.5 = %10.5 artış, -5.0 = %5 indirim)
-     */
+    //Fiyat değişikliği yüzdesini hesapla
     public BigDecimal calculatePriceChangePercentage(CartItem cartItem, BigDecimal currentProductPrice) {
         if (cartItem.getUnitPriceSnapshot().compareTo(BigDecimal.ZERO) == 0) {
             return BigDecimal.ZERO;
@@ -239,12 +158,7 @@ public class CartItemService {
             .multiply(BigDecimal.valueOf(100));
     }
 
-    /**
-     * Sepetteki item'ın ne kadar süredir bekletildiğini hesaplar (saat cinsinden)
-     * 
-     * @param cartItem kontrol edilecek item
-     * @return sepete eklendiğinden beri geçen saat
-     */
+    //Sepetteki item'ın ne kadar süredir bekletildiğini hesapla (saat cinsinden)
     public long getHoursSinceAdded(CartItem cartItem) {
         java.time.Duration duration = java.time.Duration.between(
             cartItem.getAddedAt(), 
@@ -253,14 +167,7 @@ public class CartItemService {
         return duration.toHours();
     }
 
-    /**
-     * Stokta olmayan veya fiyatı değişen item'ları filtreler
-     * 
-     * @param cartItems kontrol edilecek item'lar
-     * @param inventoryService stok kontrolü için
-     * @param productService ürün kontrolü için
-     * @return sorunlu item'lar
-     */
+    //Stokta olmayan veya fiyatı değişen item'ları filtrele
     public List<CartItem> findProblematicItems(
         List<CartItem> cartItems,
         InventoryService inventoryService,
@@ -277,14 +184,7 @@ public class CartItemService {
             .toList();
     }
 
-    /**
-     * İki sepeti birleştirir (misafir + kullanıcı sepeti)
-     * Not: Bu method sadece logic'i yönetir, kayıt repository'de yapılmalı
-     * 
-     * @param sourceItems kaynak sepet item'ları
-     * @param targetCart hedef sepet
-     * @return birleştirilmiş item'lar (yeni veya güncellenmiş)
-     */
+    //İki sepeti birleştir (misafir + kullanıcı sepeti)
     public void mergeCartItems(List<CartItem> sourceItems, Cart targetCart, List<CartItem> targetItems) {
         for (CartItem sourceItem : sourceItems) {
             // Hedef sepette aynı ürün var mı?

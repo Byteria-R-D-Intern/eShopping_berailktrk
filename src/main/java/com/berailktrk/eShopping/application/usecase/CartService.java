@@ -2,17 +2,21 @@ package com.berailktrk.eShopping.application.usecase;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.berailktrk.eShopping.domain.model.AuditLog;
 import com.berailktrk.eShopping.domain.model.Cart;
 import com.berailktrk.eShopping.domain.model.CartItem;
 import com.berailktrk.eShopping.domain.model.Product;
 import com.berailktrk.eShopping.domain.model.User;
+import com.berailktrk.eShopping.domain.repository.AuditLogRepository;
 import com.berailktrk.eShopping.domain.repository.CartItemRepository;
 import com.berailktrk.eShopping.domain.repository.CartRepository;
 import com.berailktrk.eShopping.domain.repository.ProductRepository;
@@ -35,6 +39,8 @@ public class CartService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final InventoryService inventoryService;
+    private final AuditLogService auditLogService;
+    private final AuditLogRepository auditLogRepository;
 
     //Kullanıcının sepetini getir veya oluştur
     
@@ -103,10 +109,28 @@ public class CartService {
             CartItem updatedItem = cartItemRepository.save(cartItem);
             
             // Stok rezervasyonu yap
-            boolean reserved = inventoryService.reserveStock(productSku, quantity);
+            boolean reserved = inventoryService.reserveStock(productSku, quantity, null);
             if (!reserved) {
                 throw new IllegalStateException("Failed to reserve stock for product: " + productSku);
             }
+            
+            // Audit log kaydet
+            Map<String, Object> details = new HashMap<>();
+            details.put("productSku", productSku);
+            details.put("quantity", quantity);
+            details.put("oldQuantity", cartItem.getQty() - quantity);
+            details.put("newQuantity", cartItem.getQty());
+            details.put("action", "update_existing_item");
+            
+            AuditLog cartLog = auditLogService.createLogWithDetails(
+                null, // Sistem işlemi
+                "CART_ITEM_UPDATED",
+                AuditLogService.RESOURCE_CART,
+                cart.getId(),
+                String.format("Sepete ürün eklendi: %s, Miktar: %d", productSku, quantity),
+                details
+            );
+            auditLogRepository.save(cartLog);
             
             cartRepository.updateCartTimestamp(userId);
             return updatedItem;
@@ -124,11 +148,28 @@ public class CartService {
             CartItem savedItem = cartItemRepository.save(newItem);
             
             // Stok rezervasyonu yap
-            boolean reserved = inventoryService.reserveStock(productSku, quantity);
+            boolean reserved = inventoryService.reserveStock(productSku, quantity, null);
             if (!reserved) {
                 cartItemRepository.delete(savedItem);
                 throw new IllegalStateException("Failed to reserve stock for product: " + productSku);
             }
+            
+            // Audit log kaydet
+            Map<String, Object> details = new HashMap<>();
+            details.put("productSku", productSku);
+            details.put("quantity", quantity);
+            details.put("unitPrice", product.getPrice());
+            details.put("action", "add_new_item");
+            
+            AuditLog cartLog = auditLogService.createLogWithDetails(
+                null, // Sistem işlemi
+                "CART_ITEM_ADDED",
+                AuditLogService.RESOURCE_CART,
+                cart.getId(),
+                String.format("Sepete yeni ürün eklendi: %s, Miktar: %d", productSku, quantity),
+                details
+            );
+            auditLogRepository.save(cartLog);
             
             cartRepository.updateCartTimestamp(userId);
             return savedItem;
@@ -180,14 +221,49 @@ public class CartService {
         
         if (quantity == null || quantity >= cartItem.getQty()) {
             // Tamamını çıkar
+            Integer removedQuantity = cartItem.getQty();
             cartItemRepository.deleteByCartIdAndProductId(cart.getId(), product.getId());
-            inventoryService.cancelReservation(productSku, cartItem.getQty());
+            inventoryService.cancelReservation(productSku, removedQuantity);
+            
+            // Audit log kaydet
+            Map<String, Object> details = new HashMap<>();
+            details.put("productSku", productSku);
+            details.put("removedQuantity", removedQuantity);
+            details.put("action", "remove_completely");
+            
+            AuditLog cartLog = auditLogService.createLogWithDetails(
+                null, // Sistem işlemi
+                "CART_ITEM_REMOVED",
+                AuditLogService.RESOURCE_CART,
+                cart.getId(),
+                String.format("Sepetten ürün tamamen çıkarıldı: %s, Miktar: %d", productSku, removedQuantity),
+                details
+            );
+            auditLogRepository.save(cartLog);
         } else {
             // Kısmi çıkarma
             Integer newQuantity = cartItem.getQty() - quantity;
             cartItem.setQty(newQuantity);
             cartItemRepository.save(cartItem);
             inventoryService.cancelReservation(productSku, quantity);
+            
+            // Audit log kaydet
+            Map<String, Object> details = new HashMap<>();
+            details.put("productSku", productSku);
+            details.put("removedQuantity", quantity);
+            details.put("oldQuantity", cartItem.getQty() + quantity);
+            details.put("newQuantity", newQuantity);
+            details.put("action", "remove_partial");
+            
+            AuditLog cartLog = auditLogService.createLogWithDetails(
+                null, // Sistem işlemi
+                "CART_ITEM_UPDATED",
+                AuditLogService.RESOURCE_CART,
+                cart.getId(),
+                String.format("Sepetten ürün kısmen çıkarıldı: %s, Çıkarılan: %d", productSku, quantity),
+                details
+            );
+            auditLogRepository.save(cartLog);
         }
 
         cartRepository.updateCartTimestamp(userId);
@@ -224,7 +300,7 @@ public class CartService {
 
         // Stok rezervasyonu güncelle
         if (quantityDifference > 0) {
-            boolean reserved = inventoryService.reserveStock(productSku, quantityDifference);
+            boolean reserved = inventoryService.reserveStock(productSku, quantityDifference, null);
             if (!reserved) {
                 existingItem.setQty(oldQuantity);
                 cartItemRepository.save(existingItem);
@@ -268,15 +344,31 @@ public class CartService {
 
         // Tüm cart item'ları sil
         cartItemRepository.deleteByCartId(cart.getId());
+        
+        // Audit log kaydet
+        Map<String, Object> details = new HashMap<>();
+        details.put("clearedItemsCount", cartItems.size());
+        details.put("totalQuantity", cartItems.stream().mapToInt(CartItem::getQty).sum());
+        details.put("action", "clear_all");
+        
+        AuditLog cartLog = auditLogService.createLogWithDetails(
+            null, // Sistem işlemi
+            "CART_CLEARED",
+            AuditLogService.RESOURCE_CART,
+            cart.getId(),
+            String.format("Sepet temizlendi: %d ürün, %d adet", 
+                cartItems.size(), 
+                cartItems.stream().mapToInt(CartItem::getQty).sum()),
+            details
+        );
+        auditLogRepository.save(cartLog);
+        
         cartRepository.updateCartTimestamp(userId);
 
         return true;
     }
 
-    /**
-     * Sepet kalemi için toplam fiyat hesapla
-     * Business logic: birim fiyat × miktar
-     */
+    //Sepet kalemi için toplam fiyat hesapla (birim fiyat × miktar)
     public BigDecimal calculateItemTotalPrice(CartItem cartItem) {
         if (cartItem.getUnitPriceSnapshot() == null || cartItem.getQty() == null) {
             return BigDecimal.ZERO;
@@ -284,10 +376,7 @@ public class CartService {
         return cartItem.getUnitPriceSnapshot().multiply(BigDecimal.valueOf(cartItem.getQty()));
     }
 
-    /**
-     * Sepet için toplam ürün sayısını hesapla
-     * Business logic: tüm kalemlerin miktar toplamı
-     */
+    //Sepet için toplam ürün sayısını hesapla (tüm kalemlerin miktar toplamı)
     public Integer calculateTotalItemCount(List<CartItem> cartItems) {
         if (cartItems == null || cartItems.isEmpty()) {
             return 0;
@@ -297,10 +386,7 @@ public class CartService {
                 .sum();
     }
 
-    /**
-     * Sepet için farklı ürün sayısını hesapla
-     * Business logic: unique product sayısı
-     */
+    //Sepet için farklı ürün sayısını hesapla (unique product sayısı)
     public Integer calculateUniqueItemCount(List<CartItem> cartItems) {
         if (cartItems == null || cartItems.isEmpty()) {
             return 0;
@@ -308,10 +394,7 @@ public class CartService {
         return cartItems.size();
     }
 
-    /**
-     * Sepet için toplam tutarı hesapla
-     * Business logic: tüm kalemlerin toplam fiyatı
-     */
+    //Sepet için toplam tutarı hesapla (tüm kalemlerin toplam fiyatı)
     public BigDecimal calculateTotalAmount(List<CartItem> cartItems) {
         if (cartItems == null || cartItems.isEmpty()) {
             return BigDecimal.ZERO;

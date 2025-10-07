@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.berailktrk.eShopping.application.usecase.ProductService;
+import com.berailktrk.eShopping.domain.model.User;
 import com.berailktrk.eShopping.presentation.dto.request.CreateProductRequest;
 import com.berailktrk.eShopping.presentation.dto.request.UpdateProductRequest;
 import com.berailktrk.eShopping.presentation.dto.response.ProductResponse;
@@ -100,9 +102,10 @@ public class ProductController {
         security = @SecurityRequirement(name = "bearerAuth")
     )
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody CreateProductRequest request) {
+    public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody CreateProductRequest request, Authentication authentication) {
         log.info("POST /api/products/admin - Creating product: {}", request.getSku());
-        ProductResponse product = productService.createProduct(request);
+        User currentUser = (User) authentication.getPrincipal();
+        ProductResponse product = productService.createProduct(request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(product);
     }
 
@@ -116,9 +119,11 @@ public class ProductController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductResponse> updateProduct(
             @PathVariable UUID productId,
-            @Valid @RequestBody UpdateProductRequest request) {
+            @Valid @RequestBody UpdateProductRequest request,
+            Authentication authentication) {
         log.info("PUT /api/products/admin/{} - Updating product", productId);
-        ProductResponse product = productService.updateProduct(productId, request);
+        User currentUser = (User) authentication.getPrincipal();
+        ProductResponse product = productService.updateProduct(productId, request, currentUser);
         return ResponseEntity.ok(product);
     }
 
@@ -130,9 +135,10 @@ public class ProductController {
         security = @SecurityRequirement(name = "bearerAuth")
     )
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteProduct(@PathVariable UUID productId) {
+    public ResponseEntity<Void> deleteProduct(@PathVariable UUID productId, Authentication authentication) {
         log.info("DELETE /api/products/admin/{} - Deleting product", productId);
-        productService.deleteProduct(productId);
+        User currentUser = (User) authentication.getPrincipal();
+        productService.deleteProduct(productId, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

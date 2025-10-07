@@ -1,5 +1,6 @@
 package com.berailktrk.eShopping.presentation.exception;
 
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -135,6 +136,28 @@ public class GlobalExceptionHandler {
         log.warn("Access denied: {}", request.getDescription(false));
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
+                .body(message);
+    }
+
+    // Optimistic Locking hataları - Eşzamanlılık çakışması (409 Conflict)
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<String> handleOptimisticLockingFailure(
+            OptimisticLockingFailureException ex,
+            WebRequest request) {
+        
+        String message = String.format(
+            "409 Conflict - Eşzamanlılık Çakışması\n\n" +
+            "Bu kayıt başka bir işlem tarafından güncellenmiş.\n" +
+            "Lütfen sayfayı yenileyin ve tekrar deneyin.\n\n" +
+            "Bu durum genellikle aynı anda birden fazla kullanıcının " +
+            "aynı kaydı güncellemeye çalışmasından kaynaklanır.\n\n" +
+            "Teknik Detay: %s",
+            ex.getMessage()
+        );
+        
+        log.warn("Optimistic locking failure: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
                 .body(message);
     }
 

@@ -24,9 +24,9 @@ public class InventoryResponse {
     private Instant updatedAt;
     private Integer version;
 
-    /**
-     * Mevcut stok = quantity - reserved
-     */
+    
+    //Mevcut stok = quantity - reserved
+    
     public Integer getAvailable() {
         if (quantity == null || reserved == null) {
             return 0;

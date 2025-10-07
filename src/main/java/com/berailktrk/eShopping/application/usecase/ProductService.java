@@ -1,15 +1,21 @@
 package com.berailktrk.eShopping.application.usecase;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.berailktrk.eShopping.application.mapper.ProductMapper;
+import com.berailktrk.eShopping.domain.model.AuditLog;
 import com.berailktrk.eShopping.domain.model.Inventory;
 import com.berailktrk.eShopping.domain.model.Product;
+import com.berailktrk.eShopping.domain.model.User;
+import com.berailktrk.eShopping.domain.repository.AuditLogRepository;
 import com.berailktrk.eShopping.domain.repository.InventoryRepository;
 import com.berailktrk.eShopping.domain.repository.ProductRepository;
 import com.berailktrk.eShopping.presentation.dto.request.CreateProductRequest;
@@ -18,8 +24,6 @@ import com.berailktrk.eShopping.presentation.dto.response.ProductResponse;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import com.berailktrk.eShopping.application.mapper.ProductMapper;
 
 // Product Service - Domain ve infrastructure arasındaki orchestration
 // ADMIN: Tüm CRUD işlemleri, USER: Sadece listeleme ve görüntüleme
@@ -31,21 +35,20 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
     private final ProductMapper productMapper;
+    private final AuditLogService auditLogService;
+    private final AuditLogRepository auditLogRepository;
 
-    /**
-     * Yeni ürün oluştur (ADMIN)
-     * Opsiyonel olarak initial stok da eklenebilir
-     */
+    //Yeni ürün oluştur (ADMIN) - opsiyonel initial stok
     @Transactional
-    public ProductResponse createProduct(CreateProductRequest request) {
+    public ProductResponse createProduct(CreateProductRequest request, User actorUser) {
         log.info("Creating new product with SKU: {}", request.getSku());
 
-        // SKU kontrolü
+        //SKU kontrolü
         if (productRepository.existsBySku(request.getSku())) {
             throw new IllegalArgumentException("Product with SKU " + request.getSku() + " already exists");
         }
 
-        // Ürün oluştur
+        //Ürün oluştur
         Product product = Product.builder()
                 .sku(request.getSku())
                 .name(request.getName())
@@ -59,7 +62,7 @@ public class ProductService {
         Product savedProduct = productRepository.save(product);
         log.info("Product created with ID: {}", savedProduct.getId());
 
-        // Eğer initial stok verilmişse, inventory kaydı oluştur
+        //Eğer initial stok verilmişse, inventory kaydı oluştur
         if (request.getInitialStockQuantity() != null && request.getInitialStockQuantity() > 0) {
             Inventory inventory = Inventory.builder()
                     .product(savedProduct)
@@ -72,21 +75,35 @@ public class ProductService {
                      savedProduct.getSku(), request.getInitialStockQuantity());
         }
 
+        //Audit log kaydet
+        AuditLog createLog = auditLogService.logProductAction(
+            actorUser,
+            AuditLogService.ACTION_PRODUCT_CREATED,
+            savedProduct.getId(),
+            String.format("Yeni ürün oluşturuldu: %s - %s", savedProduct.getSku(), savedProduct.getName())
+        );
+        auditLogRepository.save(createLog);
+
         return productMapper.toResponse(savedProduct);
     }
 
-    /**
-     * Ürün güncelle (ADMIN)
-     * Sadece gönderilen alanlar güncellenir
-     */
+    //Ürün güncelle (ADMIN) - sadece gönderilen alanlar
     @Transactional
-    public ProductResponse updateProduct(UUID productId, UpdateProductRequest request) {
+    public ProductResponse updateProduct(UUID productId, UpdateProductRequest request, User actorUser) {
         log.info("Updating product with ID: {}", productId);
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + productId));
 
-        // Sadece null olmayan alanları güncelle
+        //BEFORE değerleri
+        Map<String, Object> beforeValues = new HashMap<>();
+        beforeValues.put("name", product.getName());
+        beforeValues.put("description", product.getDescription());
+        beforeValues.put("price", product.getPrice());
+        beforeValues.put("currency", product.getCurrency());
+        beforeValues.put("isActive", product.getIsActive());
+
+        //Sadece null olmayan alanları güncelle
         if (request.getName() != null) {
             product.setName(request.getName());
         }
@@ -109,16 +126,34 @@ public class ProductService {
         product.setUpdatedAt(Instant.now());
         Product updatedProduct = productRepository.save(product);
         
+        //AFTER değerleri
+        Map<String, Object> afterValues = new HashMap<>();
+        afterValues.put("name", updatedProduct.getName());
+        afterValues.put("description", updatedProduct.getDescription());
+        afterValues.put("price", updatedProduct.getPrice());
+        afterValues.put("currency", updatedProduct.getCurrency());
+        afterValues.put("isActive", updatedProduct.getIsActive());
+
+        //Detaylı audit log oluştur
+        Map<String, Object> details = auditLogService.createBeforeAfterDetails(beforeValues, afterValues);
+        
+        AuditLog updateLog = auditLogService.createLogWithDetails(
+            actorUser,
+            AuditLogService.ACTION_PRODUCT_UPDATED,
+            AuditLogService.RESOURCE_PRODUCT,
+            productId,
+            String.format("Ürün güncellendi: %s - %s", updatedProduct.getSku(), updatedProduct.getName()),
+            details
+        );
+        auditLogRepository.save(updateLog);
+        
         log.info("Product updated: {}", updatedProduct.getSku());
         return productMapper.toResponse(updatedProduct);
     }
 
-    /**
-     * Ürün sil (ADMIN)
-     * Soft delete - sadece isActive = false yapar
-     */
+    //Ürün sil (ADMIN) - soft delete (isActive = false)
     @Transactional
-    public void deleteProduct(UUID productId) {
+    public void deleteProduct(UUID productId, User actorUser) {
         log.info("Deleting (deactivating) product with ID: {}", productId);
 
         Product product = productRepository.findById(productId)
@@ -128,13 +163,19 @@ public class ProductService {
         product.setUpdatedAt(Instant.now());
         productRepository.save(product);
 
+        //Audit log kaydet
+        AuditLog deleteLog = auditLogService.logProductAction(
+            actorUser,
+            AuditLogService.ACTION_PRODUCT_DEACTIVATED,
+            productId,
+            String.format("Ürün deaktif edildi: %s - %s", product.getSku(), product.getName())
+        );
+        auditLogRepository.save(deleteLog);
+
         log.info("Product deactivated: {}", product.getSku());
     }
 
-    /**
-     * ID'ye göre ürün getir (USER + ADMIN)
-     * Stok bilgisi ile birlikte
-     */
+    //ID'ye göre ürün getir (USER + ADMIN) - stok bilgisi ile
     @Transactional(readOnly = true)
     public ProductResponse getProductById(UUID productId) {
         log.debug("Fetching product with ID: {}", productId);
@@ -142,7 +183,7 @@ public class ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + productId));
 
-        // Stok bilgisini getir ve DTO'ya dönüştür
+        //Stok bilgisini getir ve DTO'ya dönüştür
         return inventoryRepository.findByProduct(product)
                 .map(inventory -> productMapper.toResponseWithStock(
                         product, 
@@ -151,9 +192,7 @@ public class ProductService {
                 .orElse(productMapper.toResponse(product));
     }
 
-    /**
-     * SKU'ya göre ürün getir (USER + ADMIN)
-     */
+    //SKU'ya göre ürün getir (USER + ADMIN)
     @Transactional(readOnly = true)
     public ProductResponse getProductBySku(String sku) {
         log.debug("Fetching product with SKU: {}", sku);
@@ -161,7 +200,7 @@ public class ProductService {
         Product product = productRepository.findBySku(sku)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + sku));
 
-        // Stok bilgisini getir ve DTO'ya dönüştür
+        //Stok bilgisini getir ve DTO'ya dönüştür
         return inventoryRepository.findByProduct(product)
                 .map(inventory -> productMapper.toResponseWithStock(
                         product, 
@@ -170,9 +209,7 @@ public class ProductService {
                 .orElse(productMapper.toResponse(product));
     }
 
-    /**
-     * Tüm aktif ürünleri listele (USER)
-     */
+    //Tüm aktif ürünleri listele (USER)
     @Transactional(readOnly = true)
     public List<ProductResponse> getAllActiveProducts() {
         log.debug("Fetching all active products");
@@ -182,9 +219,7 @@ public class ProductService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Tüm ürünleri listele - aktif ve pasif (ADMIN)
-     */
+    //Tüm ürünleri listele - aktif ve pasif (ADMIN)
     @Transactional(readOnly = true)
     public List<ProductResponse> getAllProducts() {
         log.debug("Fetching all products (including inactive)");
@@ -194,9 +229,7 @@ public class ProductService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * İsme göre ürün ara (USER + ADMIN)
-     */
+    //İsme göre ürün ara (USER + ADMIN)
     @Transactional(readOnly = true)
     public List<ProductResponse> searchProductsByName(String name) {
         log.debug("Searching products with name containing: {}", name);
