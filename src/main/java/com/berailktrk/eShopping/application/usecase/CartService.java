@@ -331,11 +331,13 @@ public class CartService {
 
     //Sepeti temizle
     
-    public boolean clearCart(UUID userId) {
+    public Integer clearCart(UUID userId) {
         log.info("Clearing cart for user: {}", userId);
         
         Cart cart = getOrCreateCart(userId);
         List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
+        
+        int removedItemCount = cartItems.size();
 
         // Tüm rezervasyonları iptal et
         for (CartItem item : cartItems) {
@@ -365,7 +367,7 @@ public class CartService {
         
         cartRepository.updateCartTimestamp(userId);
 
-        return true;
+        return removedItemCount;
     }
 
     //Sepet kalemi için toplam fiyat hesapla (birim fiyat × miktar)

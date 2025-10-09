@@ -23,6 +23,9 @@ import com.berailktrk.eShopping.presentation.dto.request.UpdateProductRequest;
 import com.berailktrk.eShopping.presentation.dto.response.ProductResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -125,8 +128,16 @@ public class ProductController {
         description = "SKU ile ürünü pasif hale getirir (soft delete)",
         security = @SecurityRequirement(name = "bearerAuth")
     )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "204", description = "Ürün başarıyla silindi (pasif hale getirildi)"),
+        @ApiResponse(responseCode = "404", description = "Ürün bulunamadı"),
+        @ApiResponse(responseCode = "401", description = "Kimlik doğrulama gerekli"),
+        @ApiResponse(responseCode = "403", description = "Admin yetkisi gerekli")
+    })
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteProduct(@PathVariable String sku, Authentication authentication) {
+    public ResponseEntity<Void> deleteProduct(
+            @Parameter(description = "Ürün SKU") @PathVariable String sku, 
+            Authentication authentication) {
         log.info("DELETE /api/products/admin/{} - Deleting product", sku);
         User currentUser = (User) authentication.getPrincipal();
         productService.deleteProduct(sku, currentUser);

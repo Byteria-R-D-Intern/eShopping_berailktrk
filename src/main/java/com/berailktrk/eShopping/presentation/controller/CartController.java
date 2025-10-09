@@ -23,6 +23,7 @@ import com.berailktrk.eShopping.presentation.dto.request.AddToCartRequest;
 import com.berailktrk.eShopping.presentation.dto.request.UpdateCartItemRequest;
 import com.berailktrk.eShopping.presentation.dto.response.CartItemResponse;
 import com.berailktrk.eShopping.presentation.dto.response.CartResponse;
+import com.berailktrk.eShopping.presentation.dto.response.CartClearResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -158,16 +159,21 @@ public class CartController {
         @ApiResponse(responseCode = "401", description = "Kimlik doğrulama gerekli")
     })
     @DeleteMapping("/clear")
-    public ResponseEntity<Void> clearCart(Authentication authentication) {
+    public ResponseEntity<CartClearResponse> clearCart(Authentication authentication) {
         UUID userId = getCurrentUserId(authentication);
         log.info("Clearing cart for user: {}", userId);
         
-        boolean success = cartService.clearCart(userId);
-        if (success) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.badRequest().build();
-        }
+        Integer removedItemCount = cartService.clearCart(userId);
+        
+        CartClearResponse response = CartClearResponse.builder()
+                .userId(userId)
+                .message("Sepet başarıyla temizlendi")
+                .removedItemCount(removedItemCount)
+                .clearedAt(java.time.Instant.now())
+                .success(true)
+                .build();
+        
+        return ResponseEntity.ok(response);
     }
 
     //Sepet toplam tutarını getir
@@ -204,10 +210,17 @@ public class CartController {
 
     //Authentication'dan kullanıcı ID'sini al
     private UUID getCurrentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
+        if (authentication == null || authentication.getPrincipal() == null) {
             throw new IllegalArgumentException("User not authenticated");
         }
-        return UUID.fromString(authentication.getName());
+        
+        // Principal User objesi ise ID'sini al
+        if (authentication.getPrincipal() instanceof com.berailktrk.eShopping.domain.model.User user) {
+            return user.getId();
+        }
+        
+        // Fallback: getName() email döndürür, UUID değil
+        throw new IllegalArgumentException("Invalid authentication principal");
     }
 
     //CartItem entity'sini response DTO'ya dönüştür (totalPrice hesaplanmış olarak)
