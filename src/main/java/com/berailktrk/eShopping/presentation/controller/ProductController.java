@@ -1,7 +1,6 @@
 package com.berailktrk.eShopping.presentation.controller;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,23 +48,15 @@ public class ProductController {
         return ResponseEntity.ok(products);
     }
 
-    // ID'ye göre ürün getir - PUBLIC endpoint
-    @GetMapping("/{productId}")
-    @Operation(summary = "ID'ye göre ürün getir", description = "Belirli bir ürünün detaylarını getirir")
-    public ResponseEntity<ProductResponse> getProductById(@PathVariable UUID productId) {
-        log.info("GET /api/products/{} - Fetching product", productId);
-        ProductResponse product = productService.getProductById(productId);
-        return ResponseEntity.ok(product);
-    }
-
     // SKU'ya göre ürün getir - PUBLIC endpoint
-    @GetMapping("/sku/{sku}")
+    @GetMapping("/{sku}")
     @Operation(summary = "SKU'ya göre ürün getir", description = "SKU ile ürün detaylarını getirir")
     public ResponseEntity<ProductResponse> getProductBySku(@PathVariable String sku) {
-        log.info("GET /api/products/sku/{} - Fetching product", sku);
+        log.info("GET /api/products/{} - Fetching product", sku);
         ProductResponse product = productService.getProductBySku(sku);
         return ResponseEntity.ok(product);
     }
+
 
     // İsme göre ürün ara - PUBLIC endpoint (case-insensitive)
     @GetMapping("/search")
@@ -110,35 +101,35 @@ public class ProductController {
     }
 
     // Ürün güncelle - ADMIN ONLY
-    @PutMapping("/admin/{productId}")
+    @PutMapping("/admin/{sku}")
     @Operation(
-        summary = "Ürün güncelle (Admin)", 
-        description = "Mevcut ürünü günceller",
+        summary = "SKU ile ürün güncelle (Admin)", 
+        description = "SKU ile ürünü günceller",
         security = @SecurityRequirement(name = "bearerAuth")
     )
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductResponse> updateProduct(
-            @PathVariable UUID productId,
+            @PathVariable String sku,
             @Valid @RequestBody UpdateProductRequest request,
             Authentication authentication) {
-        log.info("PUT /api/products/admin/{} - Updating product", productId);
+        log.info("PUT /api/products/admin/{} - Updating product", sku);
         User currentUser = (User) authentication.getPrincipal();
-        ProductResponse product = productService.updateProduct(productId, request, currentUser);
+        ProductResponse product = productService.updateProduct(sku, request, currentUser);
         return ResponseEntity.ok(product);
     }
 
     // Ürün sil - Soft delete (ADMIN ONLY)
-    @DeleteMapping("/admin/{productId}")
+    @DeleteMapping("/admin/{sku}")
     @Operation(
-        summary = "Ürün sil (Admin)", 
-        description = "Ürünü pasif hale getirir (soft delete)",
+        summary = "SKU ile ürün sil (Admin)", 
+        description = "SKU ile ürünü pasif hale getirir (soft delete)",
         security = @SecurityRequirement(name = "bearerAuth")
     )
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteProduct(@PathVariable UUID productId, Authentication authentication) {
-        log.info("DELETE /api/products/admin/{} - Deleting product", productId);
+    public ResponseEntity<Void> deleteProduct(@PathVariable String sku, Authentication authentication) {
+        log.info("DELETE /api/products/admin/{} - Deleting product", sku);
         User currentUser = (User) authentication.getPrincipal();
-        productService.deleteProduct(productId, currentUser);
+        productService.deleteProduct(sku, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

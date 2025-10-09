@@ -89,11 +89,11 @@ public class ProductService {
 
     //Ürün güncelle (ADMIN) - sadece gönderilen alanlar
     @Transactional
-    public ProductResponse updateProduct(UUID productId, UpdateProductRequest request, User actorUser) {
-        log.info("Updating product with ID: {}", productId);
+    public ProductResponse updateProduct(String sku, UpdateProductRequest request, User actorUser) {
+        log.info("Updating product with SKU: {}", sku);
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + productId));
+        Product product = productRepository.findBySku(sku)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + sku));
 
         //BEFORE değerleri
         Map<String, Object> beforeValues = new HashMap<>();
@@ -141,7 +141,7 @@ public class ProductService {
             actorUser,
             AuditLogService.ACTION_PRODUCT_UPDATED,
             AuditLogService.RESOURCE_PRODUCT,
-            productId,
+            updatedProduct.getId(),
             String.format("Ürün güncellendi: %s - %s", updatedProduct.getSku(), updatedProduct.getName()),
             details
         );
@@ -153,11 +153,11 @@ public class ProductService {
 
     //Ürün sil (ADMIN) - soft delete (isActive = false)
     @Transactional
-    public void deleteProduct(UUID productId, User actorUser) {
-        log.info("Deleting (deactivating) product with ID: {}", productId);
+    public void deleteProduct(String sku, User actorUser) {
+        log.info("Deleting (deactivating) product with SKU: {}", sku);
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found with ID: " + productId));
+        Product product = productRepository.findBySku(sku)
+                .orElseThrow(() -> new IllegalArgumentException("Product not found with SKU: " + sku));
 
         product.setIsActive(false);
         product.setUpdatedAt(Instant.now());
@@ -167,7 +167,7 @@ public class ProductService {
         AuditLog deleteLog = auditLogService.logProductAction(
             actorUser,
             AuditLogService.ACTION_PRODUCT_DEACTIVATED,
-            productId,
+            product.getId(),
             String.format("Ürün deaktif edildi: %s - %s", product.getSku(), product.getName())
         );
         auditLogRepository.save(deleteLog);
