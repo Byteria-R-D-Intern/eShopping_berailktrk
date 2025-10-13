@@ -1,26 +1,19 @@
 package com.berailktrk.eShopping.domain.model;
 
-/**
- * Ödeme durumu enum'u - PostgreSQL payment_status type ile eşleşir
- */
+
+//Ödeme durumu enum'u - PostgreSQL payment_status type ile eşleşir
 public enum PaymentStatus {
-    /**
-     * Ödeme yok
-     */
+    //Henüz ödeme yapılmadı    
     NONE,
     
-    /**
-     * Ödeme yetkilendirildi (bloke edildi ama henüz tahsil edilmedi)
-     */
+    //Ödeme yetkilendirildi (authorized) - kart bilgileri doğrulandı, tutar rezerve edildi    
     AUTHORIZED,
     
-    /**
-     * Ödeme tahsil edildi
-     */
+    
+    //Ödeme tahsil edildi (captured) - para hesaptan çekildi    
     CAPTURED,
     
-    /**
-     * Ödeme iade edildi
-     */
+    
+    //Ödeme iade edildi    
     REFUNDED
 }
