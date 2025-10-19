@@ -41,9 +41,15 @@ public class AuditLogService {
     public static final String ACTION_ORDER_SHIPPED = "ORDER_SHIPPED";
     public static final String ACTION_ORDER_REFUNDED = "ORDER_REFUNDED";
     
+    public static final String ACTION_PAYMENT_INITIATED = "PAYMENT_INITIATED";
     public static final String ACTION_PAYMENT_AUTHORIZED = "PAYMENT_AUTHORIZED";
     public static final String ACTION_PAYMENT_CAPTURED = "PAYMENT_CAPTURED";
     public static final String ACTION_PAYMENT_FAILED = "PAYMENT_FAILED";
+    public static final String ACTION_PAYMENT_REFUNDED = "PAYMENT_REFUNDED";
+    
+    public static final String ACTION_PAYMENT_METHOD_ADDED = "PAYMENT_METHOD_ADDED";
+    public static final String ACTION_PAYMENT_METHOD_UPDATED = "PAYMENT_METHOD_UPDATED";
+    public static final String ACTION_PAYMENT_METHOD_DELETED = "PAYMENT_METHOD_DELETED";
     
     //Resource Type sabitleri
     public static final String RESOURCE_USER = "USER";
@@ -52,6 +58,7 @@ public class AuditLogService {
     public static final String RESOURCE_ORDER = "ORDER";
     public static final String RESOURCE_CART = "CART";
     public static final String RESOURCE_PAYMENT = "PAYMENT";
+    public static final String RESOURCE_PAYMENT_METHOD = "PAYMENT_METHOD";
 
     //Temel audit log oluştur
     public AuditLog createLog(User actorUser, String actionType, String resourceType,UUID resourceId, String summary) {
@@ -124,11 +131,31 @@ public class AuditLogService {
     public AuditLog logPaymentAction(
         User actorUser, 
         String actionType, 
-        UUID orderId, 
+        UUID paymentId, 
+        String summary
+    ) {
+        return createLog(actorUser, actionType, RESOURCE_PAYMENT, paymentId, summary);
+    }
+
+    //Ödeme işlemleri için detaylı log oluştur
+    public AuditLog logPaymentActionWithDetails(
+        User actorUser, 
+        String actionType, 
+        UUID paymentId, 
         String summary,
         Map<String, Object> paymentDetails
     ) {
-        return createLogWithDetails(actorUser, actionType, RESOURCE_PAYMENT, orderId, summary, paymentDetails);
+        return createLogWithDetails(actorUser, actionType, RESOURCE_PAYMENT, paymentId, summary, paymentDetails);
+    }
+
+    //Ödeme yöntemi işlemleri için log oluştur
+    public AuditLog logPaymentMethodAction(
+        User actorUser, 
+        String actionType, 
+        UUID paymentMethodId, 
+        String summary
+    ) {
+        return createLog(actorUser, actionType, RESOURCE_PAYMENT_METHOD, paymentMethodId, summary);
     }
 
     //Sistem işlemleri için log oluştur (kullanıcı yok)

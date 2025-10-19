@@ -49,10 +49,10 @@ public class SecurityConfig {
                 // Actuator endpoints (optional)
                 .requestMatchers("/actuator/**").permitAll()
                 
-                // User endpoints - authentication gerektirir (cart, orders, payment-tokens, etc.)
+                // User endpoints - authentication gerektirir (cart, orders, payments, etc.)
                 .requestMatchers("/api/cart/**").authenticated()
                 .requestMatchers("/api/orders/**").authenticated()
-                .requestMatchers("/api/payment-tokens/**").authenticated()
+                .requestMatchers("/api/payments/**").authenticated()
                 
                 // Admin endpoints - authentication gerektirir, role kontrolü @PreAuthorize ile
                 .requestMatchers("/api/products/admin/**").authenticated()

@@ -21,8 +21,8 @@ import com.berailktrk.eShopping.domain.model.User;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
-    // Kullanıcının tüm siparişlerini getir
-    Page<Order> findByUser(User user, Pageable pageable);
+    // Kullanıcının tüm siparişlerini tarih sıralı getir
+    List<Order> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
     // Kullanıcı ID'ye göre siparişleri getir - Tarih sıralı
     @Query("SELECT o FROM Order o WHERE o.user.id = :userId ORDER BY o.createdAt DESC")
