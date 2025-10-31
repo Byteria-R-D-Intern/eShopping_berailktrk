@@ -23,12 +23,13 @@ import com.berailktrk.eShopping.domain.model.PaymentMethod;
 import com.berailktrk.eShopping.domain.model.User;
 import com.berailktrk.eShopping.presentation.dto.request.AddPaymentMethodRequest;
 import com.berailktrk.eShopping.presentation.dto.request.InitiatePaymentRequest;
+import com.berailktrk.eShopping.presentation.dto.request.RefreshTokenRequest;
 import com.berailktrk.eShopping.presentation.dto.request.RefundPaymentRequest;
 import com.berailktrk.eShopping.presentation.dto.request.UpdatePaymentMethodRequest;
 import com.berailktrk.eShopping.presentation.dto.response.CardInfoResponse;
+import com.berailktrk.eShopping.presentation.dto.response.PaymentListResponse;
 import com.berailktrk.eShopping.presentation.dto.response.PaymentMethodListResponse;
 import com.berailktrk.eShopping.presentation.dto.response.PaymentMethodResponse;
-import com.berailktrk.eShopping.presentation.dto.response.PaymentListResponse;
 import com.berailktrk.eShopping.presentation.dto.response.PaymentResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -106,7 +107,7 @@ public class PaymentController {
         
         User currentUser = (User) authentication.getPrincipal();
         
-        List<PaymentMethod> paymentMethods = paymentMethodService.getPaymentMethodsByUserId(currentUser.getId());
+        List<PaymentMethod> paymentMethods = paymentMethodService.getPaymentMethodsBySequence(currentUser.getId());
         PaymentMethod defaultMethod = paymentMethodService.getDefaultPaymentMethod(currentUser.getId());
         
         List<PaymentMethodResponse> responseList = paymentMethods.stream()
@@ -122,29 +123,29 @@ public class PaymentController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/methods/{paymentMethodId}")
-    @Operation(summary = "Ödeme yöntemi detayı", description = "Belirli bir ödeme yönteminin detaylarını getirir")
+    @GetMapping("/methods/{sequenceNumber}")
+    @Operation(summary = "Ödeme yöntemi detayı", description = "Belirli bir sıra numarasına sahip ödeme yönteminin detaylarını getirir")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Ödeme yöntemi detayları başarıyla getirildi"),
         @ApiResponse(responseCode = "401", description = "Yetkilendirme gerekli"),
         @ApiResponse(responseCode = "404", description = "Ödeme yöntemi bulunamadı")
     })
     public ResponseEntity<PaymentMethodResponse> getPaymentMethod(
-            @Parameter(description = "Ödeme yöntemi ID") @PathVariable UUID paymentMethodId,
+            @Parameter(description = "Sıra numarası") @PathVariable Integer sequenceNumber,
             Authentication authentication) {
         
-        log.info("Ödeme yöntemi detay isteği - User: {}, Method: {}", getCurrentUserId(authentication), paymentMethodId);
+        log.info("Ödeme yöntemi detay isteği - User: {}, Sequence: {}", getCurrentUserId(authentication), sequenceNumber);
         
         User currentUser = (User) authentication.getPrincipal();
         
-        PaymentMethod paymentMethod = paymentMethodService.getPaymentMethodById(currentUser.getId(), paymentMethodId);
+        PaymentMethod paymentMethod = paymentMethodService.getPaymentMethodBySequence(currentUser.getId(), sequenceNumber);
         PaymentMethodResponse response = mapToPaymentMethodResponse(paymentMethod);
         
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/methods/{paymentMethodId}")
-    @Operation(summary = "Ödeme yöntemi güncelle", description = "Mevcut ödeme yöntemini günceller")
+    @PutMapping("/methods/{sequenceNumber}")
+    @Operation(summary = "Ödeme yöntemi güncelle", description = "Mevcut ödeme yöntemini sıra numarası ile günceller")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Ödeme yöntemi başarıyla güncellendi"),
         @ApiResponse(responseCode = "400", description = "Geçersiz istek verisi"),
@@ -153,17 +154,17 @@ public class PaymentController {
         @ApiResponse(responseCode = "409", description = "Aynı isimde ödeme yöntemi zaten mevcut")
     })
     public ResponseEntity<PaymentMethodResponse> updatePaymentMethod(
-            @Parameter(description = "Ödeme yöntemi ID") @PathVariable UUID paymentMethodId,
+            @Parameter(description = "Sıra numarası") @PathVariable Integer sequenceNumber,
             @Valid @RequestBody UpdatePaymentMethodRequest request,
             Authentication authentication) {
         
-        log.info("Ödeme yöntemi güncelleme isteği - User: {}, Method: {}", getCurrentUserId(authentication), paymentMethodId);
+        log.info("Ödeme yöntemi güncelleme isteği - User: {}, Sequence: {}", getCurrentUserId(authentication), sequenceNumber);
         
         User currentUser = (User) authentication.getPrincipal();
         
-        PaymentMethod paymentMethod = paymentMethodService.updatePaymentMethod(
+        PaymentMethod paymentMethod = paymentMethodService.updatePaymentMethodBySequence(
                 currentUser.getId(),
-                paymentMethodId,
+                sequenceNumber,
                 request.getMethodName(),
                 request.getIsDefault()
         );
@@ -173,55 +174,65 @@ public class PaymentController {
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/methods/{paymentMethodId}")
-    @Operation(summary = "Ödeme yöntemi sil", description = "Mevcut ödeme yöntemini siler")
+    @DeleteMapping("/methods/{sequenceNumber}")
+    @Operation(summary = "Ödeme yöntemi sil", description = "Mevcut ödeme yöntemini sıra numarası ile siler")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "204", description = "Ödeme yöntemi başarıyla silindi"),
+        @ApiResponse(responseCode = "200", description = "Ödeme yöntemi başarıyla silindi"),
         @ApiResponse(responseCode = "401", description = "Yetkilendirme gerekli"),
         @ApiResponse(responseCode = "404", description = "Ödeme yöntemi bulunamadı")
     })
-    public ResponseEntity<Void> deletePaymentMethod(
-            @Parameter(description = "Ödeme yöntemi ID") @PathVariable UUID paymentMethodId,
+    public ResponseEntity<String> deletePaymentMethod(
+            @Parameter(description = "Sıra numarası") @PathVariable Integer sequenceNumber,
             Authentication authentication) {
         
-        log.info("Ödeme yöntemi silme isteği - User: {}, Method: {}", getCurrentUserId(authentication), paymentMethodId);
+        log.info("Ödeme yöntemi silme isteği - User: {}, Sequence: {}", getCurrentUserId(authentication), sequenceNumber);
         
         User currentUser = (User) authentication.getPrincipal();
         
-        paymentMethodService.deletePaymentMethod(currentUser.getId(), paymentMethodId);
+        // Ödeme yöntemini sil ve yeniden sıralama yap
+        paymentMethodService.deletePaymentMethodBySequence(currentUser.getId(), sequenceNumber);
         
-        return ResponseEntity.noContent().build();
+        // Basit mesaj döndür
+        String message = String.format("Sıra numarası %d olan ödeme yöntemi başarıyla silindi", sequenceNumber);
+        
+        log.info("Ödeme yöntemi silme tamamlandı - User: {}, Sequence: {}", getCurrentUserId(authentication), sequenceNumber);
+        
+        return ResponseEntity.ok(message);
+    }
+
+    @PutMapping("/methods/{sequenceNumber}/refresh-token")
+    @Operation(summary = "PaymentMethod token yenile", description = "PaymentMethod'un token'ını yeniler")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Token başarıyla yenilendi"),
+        @ApiResponse(responseCode = "400", description = "Geçersiz istek verisi"),
+        @ApiResponse(responseCode = "401", description = "Yetkilendirme gerekli"),
+        @ApiResponse(responseCode = "404", description = "Ödeme yöntemi bulunamadı")
+    })
+    public ResponseEntity<PaymentMethodResponse> refreshPaymentMethodToken(
+            @Parameter(description = "Sıra numarası") @PathVariable Integer sequenceNumber,
+            @Valid @RequestBody RefreshTokenRequest request,
+            Authentication authentication) {
+        
+        log.info("PaymentMethod token yenileme isteği - User: {}, Sequence: {}", getCurrentUserId(authentication), sequenceNumber);
+        
+        User currentUser = (User) authentication.getPrincipal();
+        
+        PaymentMethod paymentMethod = paymentMethodService.refreshPaymentMethodToken(
+                currentUser.getId(),
+                sequenceNumber,
+                request.getCardNumber(),
+                request.getCvv()
+        );
+        
+        PaymentMethodResponse response = mapToPaymentMethodResponse(paymentMethod);
+        
+        log.info("PaymentMethod token yenileme tamamlandı - User: {}, Sequence: {}", getCurrentUserId(authentication), sequenceNumber);
+        
+        return ResponseEntity.ok(response);
     }
 
     // ==================== PAYMENT ENDPOINTS ====================
 
-    @PostMapping("/initiate")
-    @Operation(summary = "Ödeme işlemi başlat", description = "Yeni ödeme işlemi başlatır")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "Ödeme işlemi başarıyla başlatıldı"),
-        @ApiResponse(responseCode = "400", description = "Geçersiz istek verisi"),
-        @ApiResponse(responseCode = "401", description = "Yetkilendirme gerekli"),
-        @ApiResponse(responseCode = "404", description = "Sipariş veya ödeme yöntemi bulunamadı"),
-        @ApiResponse(responseCode = "409", description = "Bu sipariş için zaten aktif ödeme var")
-    })
-    public ResponseEntity<PaymentResponse> initiatePayment(
-            @Valid @RequestBody InitiatePaymentRequest request,
-            Authentication authentication) {
-        
-        log.info("Ödeme işlemi başlatma isteği - User: {}, Order: {}", getCurrentUserId(authentication), request.getOrderId());
-        
-        User currentUser = (User) authentication.getPrincipal();
-        
-        Payment payment = paymentService.initiatePayment(
-                request.getOrderId(),
-                currentUser.getId(),
-                request.getPaymentMethodId()
-        );
-        
-        PaymentResponse response = mapToPaymentResponse(payment);
-        
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
 
     @PostMapping("/{paymentId}/authorize")
     @Operation(summary = "Ödeme yetkilendir", description = "Ödeme işlemini yetkilendirir")
@@ -337,6 +348,64 @@ public class PaymentController {
         return ResponseEntity.ok(response);
     }
 
+    // ==================== SEQUENCE NUMBER ENDPOINTS ====================
+
+    @PostMapping("/initiate")
+    @Operation(summary = "Ödeme işlemi başlat", description = "Sıra numarasına göre ödeme yöntemi seçerek ödeme işlemi başlatır")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "Ödeme işlemi başarıyla başlatıldı"),
+        @ApiResponse(responseCode = "400", description = "Geçersiz istek verisi"),
+        @ApiResponse(responseCode = "401", description = "Yetkilendirme gerekli"),
+        @ApiResponse(responseCode = "404", description = "Sipariş veya ödeme yöntemi bulunamadı"),
+        @ApiResponse(responseCode = "409", description = "Bu sipariş için zaten aktif ödeme var")
+    })
+    public ResponseEntity<PaymentResponse> initiatePayment(
+            @Valid @RequestBody InitiatePaymentRequest request,
+            Authentication authentication) {
+        
+        log.info("Sıra numarası ile ödeme başlatma isteği - User: {}, Order: {}, Sequence: {}", 
+                getCurrentUserId(authentication), request.getOrderId(), request.getSequenceNumber());
+        
+        User currentUser = (User) authentication.getPrincipal();
+        
+        Payment payment = paymentService.initiatePayment(
+                request.getOrderId(),
+                currentUser.getId(),
+                request.getSequenceNumber()
+        );
+        
+        PaymentResponse response = mapToPaymentResponse(payment);
+        
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+
+    @PostMapping("/methods/reorder")
+    @Operation(summary = "Ödeme yöntemlerini yeniden sırala", description = "Tüm ödeme yöntemlerinin sıra numaralarını yeniden düzenler")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Sıra numaraları başarıyla yeniden düzenlendi"),
+        @ApiResponse(responseCode = "401", description = "Yetkilendirme gerekli")
+    })
+    public ResponseEntity<String> reorderPaymentMethods(Authentication authentication) {
+        
+        log.info("Ödeme yöntemleri yeniden sıralama isteği - User: {}", getCurrentUserId(authentication));
+        
+        User currentUser = (User) authentication.getPrincipal();
+        
+        // Yeniden sıralama işlemini yap ve düzenlenen sayısını al
+        int reorderedCount = paymentMethodService.reorderSequenceNumbers(currentUser.getId());
+        
+        // Basit mesaj oluştur
+        String message = reorderedCount > 0 ? 
+            String.format("%d ödeme yöntemi başarıyla yeniden sıralandı", reorderedCount) :
+            "Tüm ödeme yöntemleri zaten düzenli sıralanmış";
+        
+        log.info("Ödeme yöntemleri yeniden sıralama tamamlandı - User: {}, Reordered: {}", 
+                getCurrentUserId(authentication), reorderedCount);
+        
+        return ResponseEntity.ok(message);
+    }
+
     // ==================== HELPER METHODS ====================
 
     private UUID getCurrentUserId(Authentication authentication) {
@@ -362,6 +431,7 @@ public class PaymentController {
                 .id(paymentMethod.getId())
                 .methodName(paymentMethod.getMethodName())
                 .methodType(paymentMethod.getMethodType())
+                .sequenceNumber(paymentMethod.getSequenceNumber())
                 .cardInfo(cardInfoResponse)
                 .isDefault(paymentMethod.getIsDefault())
                 .isActive(paymentMethod.getIsActive())

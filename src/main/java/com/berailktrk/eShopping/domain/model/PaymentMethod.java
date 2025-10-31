@@ -30,7 +30,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "payment_methods", indexes = {
     @Index(name = "idx_payment_methods_user_id", columnList = "user_id"),
     @Index(name = "idx_payment_methods_is_default", columnList = "is_default"),
-    @Index(name = "idx_payment_methods_created_at", columnList = "created_at")
+    @Index(name = "idx_payment_methods_created_at", columnList = "created_at"),
+    @Index(name = "idx_payment_methods_sequence", columnList = "user_id, sequence_number")
 })
 @Data
 @Builder
@@ -46,6 +47,13 @@ public class PaymentMethod {
     @JoinColumn(name = "user_id")
     private User user;
 
+    //Kullanıcının adı (hızlı erişim için)
+    //Users tablosuna JOIN yapmadan kullanıcı adına erişim sağlar
+    //Örnek: "test@example.com"
+    
+    @Column(name = "user_name", length = 255)
+    private String userName;
+
     //Ödeme yöntemi adı (kullanıcı tarafından verilen isim)
     //Örnek: "Ana Kartım", "İş Kartı"
     
@@ -57,6 +65,13 @@ public class PaymentMethod {
     
     @Column(name = "method_type", nullable = false, length = 50)
     private String methodType;
+
+    //Kullanıcı tarafından belirlenen sıra numarası
+    //Kullanıcı deneyimi için ödeme yöntemlerinin sıralanması
+    //Örnek: 1, 2, 3, 4...
+    
+    @Column(name = "sequence_number", nullable = false)
+    private Integer sequenceNumber;
 
     //Tokenized kart bilgileri (JSON formatında)
     //Gerçek kart bilgileri saklanmaz, sadece token ve maskelenmiş bilgiler

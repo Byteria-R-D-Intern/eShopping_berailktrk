@@ -25,7 +25,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "inventory", indexes = {
     @Index(name = "idx_inventory_quantity", columnList = "quantity"),
     @Index(name = "idx_inventory_updated_at", columnList = "updated_at"),
-    @Index(name = "idx_inventory_location", columnList = "warehouse_location")
+    @Index(name = "idx_inventory_product_sku", columnList = "product_sku"),
+    @Index(name = "idx_inventory_product_name", columnList = "product_name")
 })
 @Data
 @Builder
@@ -42,6 +43,12 @@ public class Inventory {
     @JoinColumn(name = "product_id")
     private Product product;
 
+    @Column(name = "product_sku", nullable = false, columnDefinition = "TEXT")
+    private String productSku;
+
+    @Column(name = "product_name", nullable = false, columnDefinition = "TEXT")
+    private String productName;
+
     @Column(nullable = false)
     @Builder.Default
     private Integer quantity = 0;
@@ -53,9 +60,6 @@ public class Inventory {
     @Column(name = "updated_at", nullable = false)
     @Builder.Default
     private Instant updatedAt = Instant.now();
-
-    @Column(name = "warehouse_location", columnDefinition = "TEXT")
-    private String warehouseLocation;
 
     @Version
     @Column(nullable = false)

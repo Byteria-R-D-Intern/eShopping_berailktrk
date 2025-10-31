@@ -44,18 +44,19 @@ public class PaymentService {
     private final AuditLogRepository auditLogRepository;
     private final TokenizationService tokenizationService;
     private final AuditLogService auditLogService;
+    private final OrderService orderService;
 
     /**
-     * Yeni ödeme işlemi başlatır
+     * Yeni ödeme işlemi başlatır (sequence number ile)
      * 
      * @param orderId Sipariş ID
      * @param userId Kullanıcı ID
-     * @param paymentMethodId Ödeme yöntemi ID
+     * @param sequenceNumber Ödeme yöntemi sıra numarası
      * @return Oluşturulan Payment
      */
     @Transactional
-    public Payment initiatePayment(UUID orderId, UUID userId, UUID paymentMethodId) {
-        log.info("Ödeme işlemi başlatılıyor - Order: {}, User: {}, PaymentMethod: {}", orderId, userId, paymentMethodId);
+    public Payment initiatePayment(UUID orderId, UUID userId, Integer sequenceNumber) {
+        log.info("Ödeme işlemi başlatılıyor - Order: {}, User: {}, Sequence: {}", orderId, userId, sequenceNumber);
         
         // Siparişi bul ve doğrula
         Order order = orderRepository.findById(orderId)
@@ -69,13 +70,10 @@ public class PaymentService {
             throw new IllegalStateException("Sadece PENDING durumundaki siparişler için ödeme yapılabilir");
         }
         
-        // Ödeme yöntemini bul ve doğrula
-        PaymentMethod paymentMethod = paymentMethodRepository.findById(paymentMethodId)
-                .orElseThrow(() -> new IllegalArgumentException("Ödeme yöntemi bulunamadı: " + paymentMethodId));
-        
-        if (!paymentMethod.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("Bu ödeme yöntemi bu kullanıcıya ait değil");
-        }
+        // Sequence number ile ödeme yöntemini bul ve doğrula
+        PaymentMethod paymentMethod = paymentMethodRepository
+                .findByUserIdAndSequenceNumberAndIsActiveTrue(userId, sequenceNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Sıra numarası " + sequenceNumber + " ile ödeme yöntemi bulunamadı"));
         
         if (!paymentMethod.getIsActive()) {
             throw new IllegalStateException("Ödeme yöntemi aktif değil");
@@ -171,7 +169,6 @@ public class PaymentService {
         payment = paymentRepository.save(payment);
         
         // Order'ı güncelle
-        OrderService orderService = new OrderService(auditLogService, auditLogRepository);
         orderService.authorizePayment(payment.getOrder());
         
         // Detaylı audit log
@@ -236,7 +233,6 @@ public class PaymentService {
         payment = paymentRepository.save(payment);
         
         // Order'ı güncelle
-        OrderService orderService = new OrderService(auditLogService, auditLogRepository);
         orderService.capturePayment(payment.getOrder());
         
         // Detaylı audit log
@@ -293,7 +289,6 @@ public class PaymentService {
         payment = paymentRepository.save(payment);
         
         // Order'ı güncelle
-        OrderService orderService = new OrderService(auditLogService, auditLogRepository);
         orderService.markAsFailed(payment.getOrder());
         
         // Detaylı audit log
@@ -371,7 +366,6 @@ public class PaymentService {
         payment = paymentRepository.save(payment);
         
         // Order'ı güncelle
-        OrderService orderService = new OrderService(auditLogService, auditLogRepository);
         orderService.refundPayment(payment.getOrder());
         
         // Detaylı audit log
@@ -420,5 +414,72 @@ public class PaymentService {
     public Payment getPaymentByTransactionId(String transactionId) {
         return paymentRepository.findByTransactionId(transactionId)
                 .orElseThrow(() -> new IllegalArgumentException("Transaction bulunamadı: " + transactionId));
+    }
+
+    /**
+     * Ödeme yönteminin online ödeme olup olmadığını kontrol eder
+     * 
+     * @param paymentMethodId Ödeme yöntemi ID
+     * @return true eğer online ödeme yöntemi ise
+     */
+    public boolean isOnlinePaymentMethod(UUID paymentMethodId) {
+        PaymentMethod paymentMethod = paymentMethodRepository.findById(paymentMethodId)
+                .orElseThrow(() -> new IllegalArgumentException("Ödeme yöntemi bulunamadı: " + paymentMethodId));
+        
+        return isOnlinePaymentMethod(paymentMethod.getMethodType());
+    }
+
+    /**
+     * Ödeme yöntemi tipinin online ödeme olup olmadığını kontrol eder
+     * 
+     * @param methodType Ödeme yöntemi tipi
+     * @return true eğer online ödeme yöntemi ise
+     */
+    public boolean isOnlinePaymentMethod(String methodType) {
+        return "CREDIT_CARD".equals(methodType) || 
+               "DEBIT_CARD".equals(methodType) || 
+               "BANK_TRANSFER".equals(methodType);
+    }
+
+    /**
+     * Sipariş için ödeme yöntemini doğrular (sadece online ödeme)
+     * 
+     * @param orderId Sipariş ID
+     * @param paymentMethodId Ödeme yöntemi ID
+     * @return PaymentMethod
+     */
+    public PaymentMethod validateOrderPaymentMethod(UUID orderId, UUID paymentMethodId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Sipariş bulunamadı: " + orderId));
+        
+        PaymentMethod paymentMethod = paymentMethodRepository.findById(paymentMethodId)
+                .orElseThrow(() -> new IllegalArgumentException("Ödeme yöntemi bulunamadı: " + paymentMethodId));
+        
+        // Kullanıcıya ait mi kontrol et
+        if (!paymentMethod.getUser().getId().equals(order.getUser().getId())) {
+            throw new IllegalArgumentException("Bu ödeme yöntemi bu kullanıcıya ait değil");
+        }
+        
+        // Sadece online ödeme yöntemlerini kabul et
+        if (!isOnlinePaymentMethod(paymentMethod.getMethodType())) {
+            throw new IllegalArgumentException(
+                String.format("Sadece online ödeme yöntemleri kabul edilir. Seçilen yöntem: %s", 
+                    paymentMethod.getMethodType())
+            );
+        }
+        
+        log.info("Payment method validated for order: {} - Method: {} ({})", 
+                orderId, paymentMethod.getMethodName(), paymentMethod.getMethodType());
+        
+        return paymentMethod;
+    }
+
+    /**
+     * Desteklenen online ödeme yöntemlerini listeler
+     * 
+     * @return Desteklenen ödeme yöntemleri
+     */
+    public List<String> getSupportedOnlinePaymentMethods() {
+        return List.of("CREDIT_CARD", "DEBIT_CARD", "BANK_TRANSFER");
     }
 }

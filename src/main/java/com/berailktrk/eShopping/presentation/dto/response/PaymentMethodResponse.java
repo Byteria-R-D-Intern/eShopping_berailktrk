@@ -20,6 +20,7 @@ public class PaymentMethodResponse {
     private UUID id;
     private String methodName;
     private String methodType;
+    private Integer sequenceNumber;
     private CardInfoResponse cardInfo;
     private Boolean isDefault;
     private Boolean isActive;

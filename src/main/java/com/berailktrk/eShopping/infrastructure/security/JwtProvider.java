@@ -20,7 +20,7 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JwtProvider {
 
-    @Value("${jwt.secret:mySecretKeyForJWTTokenGenerationThatShouldBeLongEnoughAndSecure12345}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
     @Value("${jwt.expiration:86400000}") // 24 saat (milisaniye)

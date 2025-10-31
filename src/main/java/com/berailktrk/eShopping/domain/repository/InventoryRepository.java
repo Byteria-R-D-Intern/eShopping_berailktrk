@@ -35,19 +35,19 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     // ==================== SKU-BASED METHODS ====================
 
     // SKU'ya göre stok kaydı bul
-    @Query("SELECT i FROM Inventory i WHERE i.product.sku = :sku")
+    @Query("SELECT i FROM Inventory i WHERE i.productSku = :sku")
     Optional<Inventory> findByProductSku(@Param("sku") String sku);
 
     // SKU'ya göre stok kaydını pessimistic lock ile getir
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT i FROM Inventory i WHERE i.product.sku = :sku")
+    @Query("SELECT i FROM Inventory i WHERE i.productSku = :sku")
     Optional<Inventory> findByProductSkuWithLock(@Param("sku") String sku);
 
     // SKU'ya göre stok miktarını artır/azalt (delta değeri)
     @Modifying
     @Query("UPDATE Inventory i SET i.quantity = i.quantity + :delta, " +
            "i.version = i.version + 1 " +
-           "WHERE i.product.sku = :sku")
+           "WHERE i.productSku = :sku")
     int adjustStockBySku(@Param("sku") String sku, @Param("delta") Integer delta);
 
     // SKU'ya göre stok miktarını azalt - Rezervasyon için (optimistic locking)
@@ -55,7 +55,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     @Query("UPDATE Inventory i SET i.quantity = i.quantity - :quantity, " +
            "i.reserved = i.reserved + :quantity, " +
            "i.version = i.version + 1 " +
-           "WHERE i.product.sku = :sku AND i.quantity >= :quantity AND i.version = :currentVersion")
+           "WHERE i.productSku = :sku AND i.quantity >= :quantity AND i.version = :currentVersion")
     int decreaseStockBySku(@Param("sku") String sku, 
                            @Param("quantity") Integer quantity, 
                            @Param("currentVersion") Integer currentVersion);
@@ -64,7 +64,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     @Modifying
     @Query("UPDATE Inventory i SET i.reserved = i.reserved - :quantity, " +
            "i.version = i.version + 1 " +
-           "WHERE i.product.sku = :sku AND i.reserved >= :quantity AND i.version = :currentVersion")
+           "WHERE i.productSku = :sku AND i.reserved >= :quantity AND i.version = :currentVersion")
     int confirmReservationBySku(@Param("sku") String sku, 
                                 @Param("quantity") Integer quantity, 
                                 @Param("currentVersion") Integer currentVersion);
@@ -74,7 +74,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID> {
     @Query("UPDATE Inventory i SET i.quantity = i.quantity + :quantity, " +
            "i.reserved = i.reserved - :quantity, " +
            "i.version = i.version + 1 " +
-           "WHERE i.product.sku = :sku AND i.reserved >= :quantity AND i.version = :currentVersion")
+           "WHERE i.productSku = :sku AND i.reserved >= :quantity AND i.version = :currentVersion")
     int cancelReservationBySku(@Param("sku") String sku, 
                                @Param("quantity") Integer quantity, 
                                @Param("currentVersion") Integer currentVersion);

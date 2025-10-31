@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eShopping - Ürünler</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/products.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/products.html" class="navbar-brand">🛒 eShopping</a>
+            <ul class="navbar-nav">
+                <li><a href="/products.html" class="active">Ürünler</a></li>
+                <li><a href="/cart.html">Sepet <span class="cart-badge" id="cartBadge">0</span></a></li>
+                <li><a href="#" onclick="API.logout(); return false;">Çıkış Yap</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Search Bar -->
+        <div class="search-section">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Ürün ara..."
+                    autocomplete="off"
+                >
+                <button class="btn btn-primary" id="searchBtn">Ara</button>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="spinner" id="loadingSpinner" style="display: none;"></div>
+
+        <!-- Products Grid -->
+        <div class="products-grid" id="productsGrid">
+            <!-- Products will be loaded here -->
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <p>Ürün bulunamadı</p>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div class="modal" id="productModal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-modal" id="closeModal">&times;</span>
+            <div id="productModalContent">
+                <!-- Product details will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/products.js"></script>
+</body>
+</html>
+

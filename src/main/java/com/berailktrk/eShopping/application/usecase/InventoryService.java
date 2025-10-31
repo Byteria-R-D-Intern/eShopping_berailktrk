@@ -63,6 +63,8 @@ public class InventoryService {
         Inventory inventory = Inventory.builder()
                 .product(product)
                 .productId(product.getId())
+                .productSku(product.getSku())
+                .productName(product.getName())
                 .quantity(initialQuantity)
                 .reserved(0)
                 .build();
@@ -254,24 +256,43 @@ public class InventoryService {
     public boolean cancelReservation(String sku, Integer quantity) {
         log.info("Cancelling reservation for SKU: {} quantity: {}", sku, quantity);
         
-        Inventory inventory = getInventoryBySku(sku);
+        // Retry logic ile optimistic locking problemi çöz
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                Inventory inventory = getInventoryBySku(sku);
+                
+                if (inventory.getReserved() < quantity) {
+                    log.warn("Insufficient reserved stock for SKU: {} requested: {} reserved: {}", 
+                            sku, quantity, inventory.getReserved());
+                    return false; // Rezervasyon yok, iptal etmeye gerek yok
+                }
+
+                int updatedRows = inventoryRepository.cancelReservationBySku(
+                        sku, 
+                        quantity, 
+                        inventory.getVersion()
+                );
+
+                if (updatedRows > 0) {
+                    log.info("Successfully cancelled reservation for SKU: {} quantity: {} (attempt {})", 
+                            sku, quantity, attempt);
+                    return true;
+                }
+                
+                log.warn("Failed to cancel reservation for SKU: {} attempt: {}", sku, attempt);
+                
+                // Optimistic locking hatası, tekrar dene (sleep yok)
+                
+            } catch (Exception e) {
+                log.error("Error cancelling reservation for SKU: {} attempt: {}", sku, attempt, e);
+                if (attempt == maxRetries) {
+                    throw e;
+                }
+            }
+        }
         
-        if (inventory.getReserved() < quantity) {
-            throw new IllegalArgumentException("Insufficient reserved stock for SKU: " + sku);
-        }
-
-        int updatedRows = inventoryRepository.cancelReservationBySku(
-                sku, 
-                quantity, 
-                inventory.getVersion()
-        );
-
-        if (updatedRows == 0) {
-            throw new IllegalStateException("Failed to cancel reservation for SKU: " + sku);
-        }
-
-        log.info("Successfully cancelled reservation for SKU: {} quantity: {}", sku, quantity);
-        return true;
+        throw new IllegalStateException("Failed to cancel reservation for SKU: " + sku + " after " + maxRetries + " attempts");
     }
 
     //Stok bilgilerini getir

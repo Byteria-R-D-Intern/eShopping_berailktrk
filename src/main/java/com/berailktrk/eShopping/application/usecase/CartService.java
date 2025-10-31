@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.berailktrk.eShopping.domain.model.AuditLog;
@@ -330,7 +331,7 @@ public class CartService {
     }
 
     //Sepeti temizle
-    
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Integer clearCart(UUID userId) {
         log.info("Clearing cart for user: {}", userId);
         
@@ -338,11 +339,9 @@ public class CartService {
         List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
         
         int removedItemCount = cartItems.size();
-
-        // Tüm rezervasyonları iptal et
-        for (CartItem item : cartItems) {
-            inventoryService.cancelReservation(item.getProduct().getSku(), item.getQty());
-        }
+        
+        // NOT: Rezervasyonlar zaten sipariş oluşturma sırasında iptal edilmiş olmalı
+        // Bu noktada sadece cart item'ları temizliyoruz
 
         // Tüm cart item'ları sil
         cartItemRepository.deleteByCartId(cart.getId());
@@ -350,7 +349,28 @@ public class CartService {
         // Audit log kaydet
         Map<String, Object> details = new HashMap<>();
         details.put("clearedItemsCount", cartItems.size());
-        details.put("totalQuantity", cartItems.stream().mapToInt(CartItem::getQty).sum());
+        
+        // Total quantity hesaplarken CartItem'ları stream ile işlemeyi güvenli yapalım
+        int totalQuantity = 0;
+        if (!cartItems.isEmpty()) {
+            try {
+                totalQuantity = cartItems.stream()
+                        .mapToInt(item -> {
+                            try {
+                                return item.getQty() != null ? item.getQty() : 0;
+                            } catch (Exception e) {
+                                log.warn("Failed to get quantity for cart item: {}", item.getId(), e);
+                                return 0;
+                            }
+                        })
+                        .sum();
+            } catch (Exception e) {
+                log.error("Failed to calculate total quantity for cart items", e);
+                totalQuantity = 0;
+            }
+        }
+        
+        details.put("totalQuantity", totalQuantity);
         details.put("action", "clear_all");
         
         AuditLog cartLog = auditLogService.createLogWithDetails(
@@ -360,7 +380,7 @@ public class CartService {
             cart.getId(),
             String.format("Sepet temizlendi: %d ürün, %d adet", 
                 cartItems.size(), 
-                cartItems.stream().mapToInt(CartItem::getQty).sum()),
+                totalQuantity),
             details
         );
         auditLogRepository.save(cartLog);
@@ -404,5 +424,17 @@ public class CartService {
         return cartItems.stream()
                 .map(this::calculateItemTotalPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    // ==================== CHECKOUT HELPER METHODS ====================
+
+    //Stok kontrolü yap (checkout için)
+    public boolean isStockAvailable(String sku, Integer quantity) {
+        return inventoryService.isStockAvailable(sku, quantity);
+    }
+
+    //Stok rezervasyonunu onayla (checkout için)
+    public boolean confirmStockReservation(String sku, Integer quantity) {
+        return inventoryService.confirmReservation(sku, quantity);
     }
 }

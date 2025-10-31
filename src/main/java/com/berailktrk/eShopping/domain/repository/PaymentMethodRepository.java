@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -48,6 +49,30 @@ public interface PaymentMethodRepository extends JpaRepository<PaymentMethod, UU
     //Belirli bir kullanıcının tüm varsayılan ödeme yöntemlerini false yap
     //(Yeni varsayılan ödeme yöntemi eklenirken kullanılır)
     
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE PaymentMethod pm SET pm.isDefault = false WHERE pm.user.id = :userId AND pm.isDefault = true")
     void clearDefaultPaymentMethods(@Param("userId") UUID userId);
+
+    // ==================== SEQUENCE NUMBER İŞLEMLERİ ====================
+
+    //Belirli bir kullanıcının ödeme yöntemlerini sequence number'a göre sıralı getir
+    
+    List<PaymentMethod> findByUserIdAndIsActiveTrueOrderBySequenceNumberAsc(UUID userId);
+
+    //Belirli bir kullanıcının belirli sequence number'ına sahip ödeme yöntemini getir
+    
+    Optional<PaymentMethod> findByUserIdAndSequenceNumberAndIsActiveTrue(UUID userId, Integer sequenceNumber);
+
+    //Belirli bir kullanıcının en yüksek sequence number'ını getir
+    
+    @Query("SELECT COALESCE(MAX(pm.sequenceNumber), 0) FROM PaymentMethod pm WHERE pm.user.id = :userId AND pm.isActive = true")
+    Integer findMaxSequenceNumberByUserId(@Param("userId") UUID userId);
+
+    //Belirli bir kullanıcının belirli sequence number'ına sahip ödeme yöntemi var mı kontrol et
+    
+    boolean existsByUserIdAndSequenceNumberAndIsActiveTrue(UUID userId, Integer sequenceNumber);
+
+    //Belirli bir kullanıcının belirli bir ödeme yöntemi adına sahip kaydı var mı kontrol et (Liste döner)
+    
+    List<PaymentMethod> findByUserIdAndMethodNameAndIsActiveTrue(UUID userId, String methodName);
 }

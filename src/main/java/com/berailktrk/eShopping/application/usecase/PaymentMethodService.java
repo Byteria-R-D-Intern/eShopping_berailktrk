@@ -73,11 +73,16 @@ public class PaymentMethodService {
             paymentMethodRepository.clearDefaultPaymentMethods(userId);
         }
         
+        // Yeni sequence number belirle (en yüksek + 1)
+        Integer nextSequenceNumber = paymentMethodRepository.findMaxSequenceNumberByUserId(userId) + 1;
+        
         // PaymentMethod oluştur
         PaymentMethod paymentMethod = PaymentMethod.builder()
                 .user(user)
+                .userName(user.getEmail())
                 .methodName(methodName)
                 .methodType(methodType)
+                .sequenceNumber(nextSequenceNumber)
                 .cardInfo(cardInfo)
                 .isDefault(isDefault)
                 .isActive(true)
@@ -198,6 +203,9 @@ public class PaymentMethodService {
         );
         auditLogRepository.save(methodLog);
         
+        // Sequence number'ları yeniden düzenle
+        reorderSequenceNumbers(userId);
+        
         log.info("Ödeme yöntemi başarıyla silindi - ID: {}", paymentMethodId);
     }
 
@@ -262,5 +270,258 @@ public class PaymentMethodService {
      */
     public boolean hasDefaultPaymentMethod(UUID userId) {
         return paymentMethodRepository.existsByUserIdAndIsDefaultTrueAndIsActiveTrue(userId);
+    }
+
+    // ==================== SEQUENCE NUMBER İŞLEMLERİ ====================
+
+    /**
+     * Kullanıcının ödeme yöntemlerini sequence number'a göre sıralı getirir
+     * 
+     * @param userId Kullanıcı ID
+     * @return Sıralı ödeme yöntemleri listesi
+     */
+    public List<PaymentMethod> getPaymentMethodsBySequence(UUID userId) {
+        log.info("Sequence number'a göre ödeme yöntemleri getiriliyor - User: {}", userId);
+        
+        List<PaymentMethod> paymentMethods = paymentMethodRepository
+                .findByUserIdAndIsActiveTrueOrderBySequenceNumberAsc(userId);
+        
+        log.info("{} adet ödeme yöntemi bulundu - User: {}", paymentMethods.size(), userId);
+        return paymentMethods;
+    }
+
+    /**
+     * Belirli sequence number'a sahip ödeme yöntemini getirir
+     * 
+     * @param userId Kullanıcı ID
+     * @param sequenceNumber Sıra numarası
+     * @return PaymentMethod
+     * @throws IllegalArgumentException Sequence number bulunamazsa
+     */
+    public PaymentMethod getPaymentMethodBySequence(UUID userId, Integer sequenceNumber) {
+        log.info("Sequence number ile ödeme yöntemi getiriliyor - User: {}, Sequence: {}", userId, sequenceNumber);
+        
+        PaymentMethod paymentMethod = paymentMethodRepository
+                .findByUserIdAndSequenceNumberAndIsActiveTrue(userId, sequenceNumber)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        String.format("Sequence number %d'ye sahip ödeme yöntemi bulunamadı", sequenceNumber)));
+        
+        log.info("Ödeme yöntemi bulundu - ID: {}, Name: {}", paymentMethod.getId(), paymentMethod.getMethodName());
+        return paymentMethod;
+    }
+
+    /**
+     * Ödeme yönteminin sequence number'ını günceller (sequence number ile)
+     * 
+     * @param userId Kullanıcı ID
+     * @param currentSequenceNumber Mevcut sıra numarası
+     * @param newSequenceNumber Yeni sıra numarası
+     * @return Güncellenmiş PaymentMethod
+     */
+    @Transactional
+    public PaymentMethod updateSequenceNumber(UUID userId, Integer currentSequenceNumber, Integer newSequenceNumber) {
+        log.info("Sequence number güncelleniyor - User: {}, Current Sequence: {}, New Sequence: {}", 
+                userId, currentSequenceNumber, newSequenceNumber);
+        
+        // Mevcut sequence number ile ödeme yöntemini bul
+        PaymentMethod paymentMethod = getPaymentMethodBySequence(userId, currentSequenceNumber);
+        
+        // Yeni sequence number zaten kullanılıyor mu kontrol et
+        if (paymentMethodRepository.existsByUserIdAndSequenceNumberAndIsActiveTrue(userId, newSequenceNumber)) {
+            throw new IllegalArgumentException("Bu sıra numarası zaten kullanılıyor: " + newSequenceNumber);
+        }
+        
+        // Sequence number'ı güncelle
+        paymentMethod.setSequenceNumber(newSequenceNumber);
+        paymentMethod.setUpdatedAt(Instant.now());
+        
+        paymentMethod = paymentMethodRepository.save(paymentMethod);
+        
+        // Audit log
+        User user = paymentMethod.getUser();
+        AuditLog auditLog = auditLogService.logPaymentMethodAction(
+                user,
+                AuditLogService.ACTION_PAYMENT_METHOD_UPDATED,
+                paymentMethod.getId(),
+                String.format("Sequence number güncellendi - Name: %s, Old: %d, New: %d", 
+                        paymentMethod.getMethodName(), currentSequenceNumber, newSequenceNumber)
+        );
+        auditLogRepository.save(auditLog);
+        
+        log.info("Sequence number başarıyla güncellendi - ID: {}, Old: {}, New: {}", 
+                paymentMethod.getId(), currentSequenceNumber, newSequenceNumber);
+        
+        return paymentMethod;
+    }
+
+    /**
+     * Ödeme yöntemlerinin sequence number'larını yeniden düzenler
+     * (Silme işlemlerinden sonra boşlukları doldurmak için)
+     * 
+     * @param userId Kullanıcı ID
+     * @return Düzenlenen ödeme yöntemi sayısı
+     */
+    @Transactional
+    public int reorderSequenceNumbers(UUID userId) {
+        log.info("Sequence number'lar yeniden düzenleniyor - User: {}", userId);
+        
+        List<PaymentMethod> paymentMethods = paymentMethodRepository
+                .findByUserIdAndIsActiveTrueOrderBySequenceNumberAsc(userId);
+        
+        int reorderedCount = 0;
+        
+        for (int i = 0; i < paymentMethods.size(); i++) {
+            PaymentMethod method = paymentMethods.get(i);
+            Integer expectedSequence = i + 1;
+            
+            if (!expectedSequence.equals(method.getSequenceNumber())) {
+                method.setSequenceNumber(expectedSequence);
+                method.setUpdatedAt(Instant.now());
+                paymentMethodRepository.save(method);
+                reorderedCount++;
+                
+                log.debug("Sequence number düzeltildi - Method: {}, Old: {}, New: {}", 
+                        method.getId(), method.getSequenceNumber(), expectedSequence);
+            }
+        }
+        
+        log.info("Sequence number'lar başarıyla yeniden düzenlendi - User: {}, Total: {}, Reordered: {}", 
+                userId, paymentMethods.size(), reorderedCount);
+        
+        return reorderedCount;
+    }
+
+    /**
+     * Sequence number ile ödeme yöntemini günceller
+     * 
+     * @param userId Kullanıcı ID
+     * @param sequenceNumber Sıra numarası
+     * @param methodName Yeni ödeme yöntemi adı
+     * @param isDefault Varsayılan ödeme yöntemi mi
+     * @return Güncellenmiş PaymentMethod
+     */
+    @Transactional
+    public PaymentMethod updatePaymentMethodBySequence(UUID userId, Integer sequenceNumber, String methodName, boolean isDefault) {
+        log.info("Sequence number ile ödeme yöntemi güncelleniyor - User: {}, Sequence: {}, Name: {}", userId, sequenceNumber, methodName);
+        
+        // Sequence number ile ödeme yöntemini bul
+        PaymentMethod paymentMethod = getPaymentMethodBySequence(userId, sequenceNumber);
+        
+        // Aynı isimde başka ödeme yöntemi var mı kontrol et (mevcut ödeme yöntemi hariç)
+        if (paymentMethodRepository.existsByUserIdAndMethodNameAndIsActiveTrue(userId, methodName)) {
+            PaymentMethod existingMethod = paymentMethodRepository
+                    .findByUserIdAndMethodNameAndIsActiveTrue(userId, methodName)
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
+            
+            if (existingMethod != null && !existingMethod.getId().equals(paymentMethod.getId())) {
+                throw new IllegalArgumentException("Bu isimde bir ödeme yöntemi zaten mevcut: " + methodName);
+            }
+        }
+        
+        // Eğer varsayılan olarak işaretleniyorsa, diğer varsayılanları kaldır
+        if (isDefault) {
+            paymentMethodRepository.clearDefaultPaymentMethods(userId);
+        }
+        
+        // PaymentMethod'u güncelle
+        paymentMethod.setMethodName(methodName);
+        paymentMethod.setIsDefault(isDefault);
+        paymentMethod.setUpdatedAt(Instant.now());
+        
+        paymentMethod = paymentMethodRepository.save(paymentMethod);
+        
+        // Audit log
+        AuditLog methodLog = auditLogService.logPaymentMethodAction(
+                paymentMethod.getUser(),
+                AuditLogService.ACTION_PAYMENT_METHOD_UPDATED,
+                paymentMethod.getId(),
+                String.format("Ödeme yöntemi güncellendi - Name: %s, Sequence: %d", methodName, sequenceNumber)
+        );
+        auditLogRepository.save(methodLog);
+        
+        log.info("Ödeme yöntemi başarıyla güncellendi - ID: {}, Name: {}", paymentMethod.getId(), methodName);
+        
+        return paymentMethod;
+    }
+
+    /**
+     * PaymentMethod'un token'ını yeniler
+     * 
+     * @param userId Kullanıcı ID
+     * @param sequenceNumber Sıra numarası
+     * @param cardNumber Yeni kart numarası
+     * @param cvv Yeni CVV
+     */
+    @Transactional
+    public PaymentMethod refreshPaymentMethodToken(UUID userId, Integer sequenceNumber, String cardNumber, String cvv) {
+        log.info("PaymentMethod token'ı yenileniyor - User: {}, Sequence: {}", userId, sequenceNumber);
+        
+        PaymentMethod paymentMethod = getPaymentMethodBySequence(userId, sequenceNumber);
+        
+        // Mevcut CardInfo'yu al
+        CardInfo oldCardInfo = paymentMethod.getCardInfo();
+        
+        // Yeni token oluştur (aynı kart bilgileri ile)
+        CardInfo newCardInfo = tokenizationService.tokenizeCard(
+                cardNumber,
+                oldCardInfo.getCardholderName(),
+                oldCardInfo.getExpiryDate(),
+                cvv
+        );
+        
+        // PaymentMethod'u güncelle
+        paymentMethod.setCardInfo(newCardInfo);
+        paymentMethod.setUpdatedAt(Instant.now());
+        
+        paymentMethod = paymentMethodRepository.save(paymentMethod);
+        
+        // Eski token'ı geçersiz kıl
+        if (oldCardInfo.getToken() != null) {
+            tokenizationService.invalidateToken(oldCardInfo.getToken());
+        }
+        
+        log.info("PaymentMethod token başarıyla yenilendi - ID: {}", paymentMethod.getId());
+        return paymentMethod;
+    }
+
+    /**
+     * Sequence number ile ödeme yöntemini siler
+     * 
+     * @param userId Kullanıcı ID
+     * @param sequenceNumber Sıra numarası
+     */
+    @Transactional
+    public void deletePaymentMethodBySequence(UUID userId, Integer sequenceNumber) {
+        log.info("Sequence number ile ödeme yöntemi siliniyor - User: {}, Sequence: {}", userId, sequenceNumber);
+        
+        // Sequence number ile ödeme yöntemini bul
+        PaymentMethod paymentMethod = getPaymentMethodBySequence(userId, sequenceNumber);
+        
+        // PaymentMethod'u soft delete yap
+        paymentMethod.setIsActive(false);
+        paymentMethod.setUpdatedAt(Instant.now());
+        
+        paymentMethodRepository.save(paymentMethod);
+        
+        // Token'ı geçersiz kıl
+        if (paymentMethod.getCardInfo() != null && paymentMethod.getCardInfo().getToken() != null) {
+            tokenizationService.invalidateToken(paymentMethod.getCardInfo().getToken());
+        }
+        
+        // Audit log
+        AuditLog methodLog = auditLogService.logPaymentMethodAction(
+                paymentMethod.getUser(),
+                AuditLogService.ACTION_PAYMENT_METHOD_DELETED,
+                paymentMethod.getId(),
+                String.format("Ödeme yöntemi silindi - Name: %s, Sequence: %d", paymentMethod.getMethodName(), sequenceNumber)
+        );
+        auditLogRepository.save(methodLog);
+        
+        // Sequence number'ları yeniden düzenle
+        reorderSequenceNumbers(userId);
+        
+        log.info("Ödeme yöntemi başarıyla silindi - Sequence: {}", sequenceNumber);
     }
 }
