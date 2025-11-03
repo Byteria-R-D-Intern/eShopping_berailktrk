@@ -172,6 +172,82 @@ const API = {
             return await response.text().then(text => parseInt(text) || 0);
         }
         return 0;
+    },
+
+    // Payment Methods
+    getPaymentMethods: async () => {
+        const response = await apiRequest('/api/payments/methods');
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    },
+
+    addPaymentMethod: async (methodName, methodType, cardNumber, cardholderName, expiryDate, cvv, isDefault) => {
+        const response = await apiRequest('/api/payments/methods', {
+            method: 'POST',
+            body: JSON.stringify({
+                methodName,
+                methodType,
+                cardNumber,
+                cardholderName,
+                expiryDate,
+                cvv,
+                isDefault
+            })
+        });
+        if (response.ok || response.status === 201) {
+            return await response.json();
+        }
+        return null;
+    },
+
+    deletePaymentMethod: async (sequenceNumber) => {
+        const response = await apiRequest(`/api/payments/methods/${sequenceNumber}`, {
+            method: 'DELETE'
+        });
+        return response.ok;
+    },
+
+    refreshPaymentMethodToken: async (sequenceNumber, cardNumber, cvv) => {
+        const response = await apiRequest(`/api/payments/methods/${sequenceNumber}/refresh-token`, {
+            method: 'PUT',
+            body: JSON.stringify({ cardNumber, cvv })
+        });
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    },
+
+    // Orders / Checkout
+    checkout: async (shippingAddress, billingAddress, sequenceNumber, orderNotes, metadata) => {
+        const response = await apiRequest('/api/orders/checkout', {
+            method: 'POST',
+            body: JSON.stringify({
+                shippingAddress,
+                billingAddress,
+                sequenceNumber,
+                orderNotes,
+                metadata
+            })
+        });
+        if (response.ok || response.status === 201) {
+            return await response.json();
+        }
+        return null;
+    },
+
+    // Payments
+    initiatePayment: async (orderId, sequenceNumber) => {
+        const response = await apiRequest('/api/payments/initiate', {
+            method: 'POST',
+            body: JSON.stringify({ orderId, sequenceNumber })
+        });
+        if (response.ok || response.status === 201) {
+            return await response.json();
+        }
+        return null;
     }
 };
 
@@ -229,4 +305,5 @@ async function updateCartBadge() {
 document.addEventListener('DOMContentLoaded', () => {
     updateCartBadge();
 });
+
 

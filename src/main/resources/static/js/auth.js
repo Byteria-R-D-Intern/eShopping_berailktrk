@@ -298,3 +298,4 @@ function isValidEmail(email) {
 // Initialize - check if user is already authenticated
 checkAuth();
 
+

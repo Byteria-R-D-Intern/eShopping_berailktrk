@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eShopping - Sepetim</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/cart.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/products.html" class="navbar-brand">🛒 eShopping</a>
+            <ul class="navbar-nav">
+                <li><a href="/products.html">Ürünler</a></li>
+                <li><a href="/cart.html" class="active">Sepet <span class="cart-badge" id="cartBadge">0</span></a></li>
+                <li><a href="#" onclick="API.logout(); return false;">Çıkış Yap</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="cart-header">
+            <h1>Sepetim</h1>
+            <div class="cart-stats" id="cartStats">
+                <span id="itemCount">0 ürün</span>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="spinner" id="loadingSpinner" style="display: none;"></div>
+
+        <!-- Cart Content -->
+        <div class="cart-content" id="cartContent">
+            <!-- Cart items and summary will be loaded here -->
+        </div>
+
+        <!-- Empty Cart State -->
+        <div class="empty-cart" id="emptyCart" style="display: none;">
+            <div class="empty-cart-icon">🛒</div>
+            <h2>Sepetiniz Boş</h2>
+            <p>Sepetinize henüz ürün eklenmemiş.</p>
+            <a href="/products.html" class="btn btn-primary">Alışverişe Başla</a>
+        </div>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/cart.js"></script>
+</body>
+</html>
+
+

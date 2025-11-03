@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eShopping - Ödeme</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/checkout.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/products.html" class="navbar-brand">🛒 eShopping</a>
+            <ul class="navbar-nav">
+                <li><a href="/products.html">Ürünler</a></li>
+                <li><a href="/cart.html">Sepet <span class="cart-badge" id="cartBadge">0</span></a></li>
+                <li><a href="#" onclick="API.logout(); return false;">Çıkış Yap</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="checkout-header">
+            <h1>Ödeme</h1>
+            <p class="checkout-subtitle">Sepetinizden sipariş oluşturun</p>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="spinner" id="loadingSpinner" style="display: none;"></div>
+
+        <!-- Checkout Content -->
+        <div class="checkout-content" id="checkoutContent">
+            <div class="checkout-grid">
+                <!-- Left Column: Forms -->
+                <div class="checkout-forms">
+                    <!-- Payment Methods Section -->
+                    <div class="checkout-section">
+                        <h2>Ödeme Yöntemi</h2>
+                        <div id="paymentMethodsContainer">
+                            <!-- Payment methods will be loaded here -->
+                        </div>
+                        <button class="btn btn-outline" id="addPaymentMethodBtn" onclick="showAddPaymentMethodForm()">
+                            + Yeni Ödeme Yöntemi Ekle
+                        </button>
+                    </div>
+
+                    <!-- Add Payment Method Form (Hidden by default) -->
+                    <div class="checkout-section" id="addPaymentMethodForm" style="display: none;">
+                        <h2>Yeni Ödeme Yöntemi Ekle</h2>
+                        <form id="paymentMethodForm">
+                            <div class="form-group">
+                                <label for="methodName">Ödeme Yöntemi Adı</label>
+                                <input type="text" id="methodName" name="methodName" placeholder="Örn: Ana Kredi Kartım" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="cardNumber">Kart Numarası</label>
+                                <input type="text" id="cardNumber" name="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19" inputmode="numeric" pattern="[0-9\s]*" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="cardholderName">Kartın Üzerinde Yazan İsim</label>
+                                    <input type="text" id="cardholderName" name="cardholderName" placeholder="Ad Soyad" pattern="[A-Za-zğüşıöçĞÜŞİÖÇ\s]*" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="expiryMonth">Son Kullanma - Ay</label>
+                                    <select id="expiryMonth" name="expiryMonth" required>
+                                        <option value="">Ay</option>
+                                        <option value="01">01</option>
+                                        <option value="02">02</option>
+                                        <option value="03">03</option>
+                                        <option value="04">04</option>
+                                        <option value="05">05</option>
+                                        <option value="06">06</option>
+                                        <option value="07">07</option>
+                                        <option value="08">08</option>
+                                        <option value="09">09</option>
+                                        <option value="10">10</option>
+                                        <option value="11">11</option>
+                                        <option value="12">12</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="expiryYear">Son Kullanma - Yıl</label>
+                                    <select id="expiryYear" name="expiryYear" required>
+                                        <option value="">Yıl</option>
+                                    </select>
+                                </div>
+                                <div class="form-group cvv-group">
+                                    <label for="cvv">CVV</label>
+                                    <input type="text" id="cvv" name="cvv" placeholder="123" maxlength="4" inputmode="numeric" pattern="[0-9]*" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="isDefault" name="isDefault">
+                                    Varsayılan ödeme yöntemi olarak kaydet
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">Kaydet</button>
+                                <button type="button" class="btn btn-secondary" onclick="hideAddPaymentMethodForm()">İptal</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Shipping Address Section -->
+                    <div class="checkout-section">
+                        <h2>Teslimat Adresi</h2>
+                        <form id="shippingAddressForm">
+                            <div class="form-row">
+                                <div class="form-group small-input">
+                                    <label for="shippingCity">Şehir</label>
+                                    <input type="text" id="shippingCity" name="city" required>
+                                </div>
+                                <div class="form-group small-input">
+                                    <label for="shippingDistrict">İlçe</label>
+                                    <input type="text" id="shippingDistrict" name="district" required>
+                                </div>
+                                <div class="form-group small-input">
+                                    <label for="shippingNeighborhood">Mahalle</label>
+                                    <input type="text" id="shippingNeighborhood" name="neighborhood" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="shippingStreet">Sokak</label>
+                                <input type="text" id="shippingStreet" name="street" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group small-input">
+                                    <label for="shippingBuildingNo">Bina No</label>
+                                    <input type="text" id="shippingBuildingNo" name="buildingNo" required>
+                                </div>
+                                <div class="form-group small-input">
+                                    <label for="shippingApartmentNo">Daire No</label>
+                                    <input type="text" id="shippingApartmentNo" name="apartmentNo">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Billing Address Section -->
+                    <div class="checkout-section">
+                        <h2>Fatura Adresi</h2>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="sameAsShipping" checked>
+                            Teslimat adresi ile aynı
+                        </label>
+                        <form id="billingAddressForm" style="display: none;">
+                            <div class="form-row">
+                                <div class="form-group small-input">
+                                    <label for="billingCity">Şehir</label>
+                                    <input type="text" id="billingCity" name="city">
+                                </div>
+                                <div class="form-group small-input">
+                                    <label for="billingDistrict">İlçe</label>
+                                    <input type="text" id="billingDistrict" name="district">
+                                </div>
+                                <div class="form-group small-input">
+                                    <label for="billingNeighborhood">Mahalle</label>
+                                    <input type="text" id="billingNeighborhood" name="neighborhood">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="billingStreet">Sokak</label>
+                                <input type="text" id="billingStreet" name="street">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group small-input">
+                                    <label for="billingBuildingNo">Bina No</label>
+                                    <input type="text" id="billingBuildingNo" name="buildingNo">
+                                </div>
+                                <div class="form-group small-input">
+                                    <label for="billingApartmentNo">Daire No</label>
+                                    <input type="text" id="billingApartmentNo" name="apartmentNo">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Order Notes -->
+                    <div class="checkout-section">
+                        <h2>Sipariş Notu (Opsiyonel)</h2>
+                        <div class="form-group">
+                            <input type="text" id="orderNotes" name="orderNotes" placeholder="Kapı zili çalınmadan bırakılabilir..." maxlength="200">
+                            <div class="char-counter">
+                                <span id="orderNotesCharCount">0</span> / 200 karakter
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Order Summary -->
+                <div class="checkout-summary">
+                    <h2>Sipariş Özeti</h2>
+                    <div id="orderSummaryContent">
+                        <!-- Order summary will be loaded here -->
+                    </div>
+                    <div class="checkout-actions">
+                        <button class="btn btn-primary btn-checkout" id="checkoutBtn" onclick="processCheckout()">
+                            Ödemeyi Tamamla
+                        </button>
+                        <a href="/cart.html" class="btn btn-secondary">Sepete Dön</a>
+                    </div>
+                    
+                    <!-- Card Preview -->
+                    <div class="card-preview-wrapper">
+                        <h3>Kart Önizleme</h3>
+                        <div class="card-preview" id="cardPreview">
+                            <div class="card-preview-front">
+                                <div class="card-preview-chip"></div>
+                                <div class="card-preview-number" id="previewCardNumber">•••• •••• •••• ••••</div>
+                                <div class="card-preview-info">
+                                    <div class="card-preview-name" id="previewCardholderName">KART SAHIBI</div>
+                                    <div class="card-preview-expiry" id="previewExpiry">MM/YY</div>
+                                </div>
+                                <div class="card-preview-brand" id="previewCardBrand"><span id="previewCardBrandText"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/checkout.js"></script>
+</body>
+</html>
+

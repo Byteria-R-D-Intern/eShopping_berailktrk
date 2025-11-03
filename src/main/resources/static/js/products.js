@@ -24,6 +24,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Sort functionality
+    const sortSelect = document.getElementById('sortSelect');
+    sortSelect.addEventListener('change', handleSort);
+
     // Update cart badge
     updateCartBadge();
 });
@@ -80,7 +84,66 @@ function displayProducts(products) {
     grid.style.display = 'grid';
     emptyState.style.display = 'none';
 
-    grid.innerHTML = products.map(product => createProductCard(product)).join('');
+    // Apply current sort if any
+    const sortedProducts = applySorting(products, document.getElementById('sortSelect').value);
+    grid.innerHTML = sortedProducts.map(product => createProductCard(product)).join('');
+}
+
+// Handle sort change
+function handleSort() {
+    // Re-display products with current sort selection
+    displayProducts([...currentProducts]);
+}
+
+// Apply sorting to products array
+function applySorting(products, sortOption) {
+    const sorted = [...products]; // Create a copy to avoid mutating original array
+
+    switch(sortOption) {
+        case 'price-asc':
+            sorted.sort((a, b) => {
+                const priceA = parseFloat(a.price) || 0;
+                const priceB = parseFloat(b.price) || 0;
+                return priceA - priceB;
+            });
+            break;
+
+        case 'price-desc':
+            sorted.sort((a, b) => {
+                const priceA = parseFloat(a.price) || 0;
+                const priceB = parseFloat(b.price) || 0;
+                return priceB - priceA;
+            });
+            break;
+
+        case 'name-asc':
+            sorted.sort((a, b) => {
+                const nameA = (a.name || '').toLowerCase();
+                const nameB = (b.name || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'tr');
+            });
+            break;
+
+        case 'name-desc':
+            sorted.sort((a, b) => {
+                const nameA = (a.name || '').toLowerCase();
+                const nameB = (b.name || '').toLowerCase();
+                return nameB.localeCompare(nameA, 'tr');
+            });
+            break;
+
+        case 'default':
+        default:
+            // Sort by creation date (newest first) if available
+            sorted.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return dateB - dateA; // Newest first
+            });
+            break;
+    }
+
+    return sorted;
 }
 
 // Create product card HTML
