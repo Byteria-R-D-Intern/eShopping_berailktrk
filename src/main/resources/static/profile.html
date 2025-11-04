@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eShopping - Profil</title>
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/profile.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/products.html" class="navbar-brand">🛒 eShopping</a>
+            <ul class="navbar-nav">
+                <li><a href="/products.html">Ürünler</a></li>
+                <li><a href="/cart.html">Sepet <span class="cart-badge" id="cartBadge">0</span></a></li>
+                <li><a href="/profile.html" class="active">Profil</a></li>
+                <li><a href="#" onclick="API.logout(); return false;">Çıkış Yap</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="profile-header">
+            <h1>Profil</h1>
+            <p class="profile-subtitle">Hesap bilgileriniz ve geçmiş siparişleriniz</p>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="spinner" id="loadingSpinner" style="display: none;"></div>
+
+        <!-- Profile Content -->
+        <div class="profile-content" id="profileContent">
+            <div class="profile-grid">
+                <!-- Left Column: Profile Info, Addresses, Payment Methods -->
+                <div class="profile-left">
+                    <!-- Profile Information -->
+                    <div class="profile-section">
+                        <h2>Profil Bilgileri</h2>
+                        <div class="profile-info" id="profileInfo">
+                            <div class="info-item">
+                                <span class="info-label">E-posta:</span>
+                                <span class="info-value" id="userEmail">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Rol:</span>
+                                <span class="info-value" id="userRole">-</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Üyelik Tarihi:</span>
+                                <span class="info-value" id="userCreatedAt">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Saved Addresses -->
+                    <div class="profile-section">
+                        <h2>Kayıtlı Adresler</h2>
+                        <div id="addressesContainer">
+                            <p class="no-data">Henüz kayıtlı adres bulunmuyor</p>
+                        </div>
+                    </div>
+
+                    <!-- Payment Methods -->
+                    <div class="profile-section">
+                        <h2>Ödeme Yöntemleri</h2>
+                        <div id="paymentMethodsContainer">
+                            <p class="no-data">Ödeme yöntemleri yükleniyor...</p>
+                        </div>
+                        <a href="/checkout.html" class="btn btn-outline" style="margin-top: 15px;">
+                            + Yeni Ödeme Yöntemi Ekle
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right Column: Orders -->
+                <div class="profile-right">
+                    <div class="profile-section">
+                        <h2>Siparişlerim</h2>
+                        <div id="ordersContainer">
+                            <p class="no-data">Siparişler yükleniyor...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/profile.js"></script>
+</body>
+</html>
+

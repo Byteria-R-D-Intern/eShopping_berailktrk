@@ -36,7 +36,7 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Static resources - frontend files
-                .requestMatchers("/", "/index.html", "/products.html", "/cart.html", "/checkout.html", "/orders.html", "/css/**", "/js/**", "/images/**", "/fonts/**").permitAll()
+                .requestMatchers("/", "/index.html", "/products.html", "/cart.html", "/checkout.html", "/orders.html", "/profile.html", "/css/**", "/js/**", "/images/**", "/fonts/**").permitAll()
                 
                 // Swagger/OpenAPI endpoints
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

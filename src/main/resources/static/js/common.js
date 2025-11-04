@@ -220,6 +220,23 @@ const API = {
         return null;
     },
 
+    // Orders
+    getOrders: async () => {
+        const response = await apiRequest('/api/orders');
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    },
+
+    getOrder: async (orderId) => {
+        const response = await apiRequest(`/api/orders/${orderId}`);
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    },
+
     // Orders / Checkout
     checkout: async (shippingAddress, billingAddress, sequenceNumber, orderNotes, metadata) => {
         const response = await apiRequest('/api/orders/checkout', {
